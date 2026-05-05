@@ -70,6 +70,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   }));
 
+  context.subscriptions.push(vscode.commands.registerCommand('linkedinDevCompanion.saveClipboardAsVoiceExample', async () => {
+    const text = (await vscode.env.clipboard.readText()).trim();
+    if (!text) {
+      vscode.window.showWarningMessage('Clipboard vazio. Copie o texto do prompt/chat antes de salvar como exemplo de voz.');
+      return;
+    }
+
+    const action = await vscode.window.showInformationMessage(
+      `Salvar ${text.length} caracteres do clipboard como exemplo de voz?`,
+      'Salvar'
+    );
+    if (action !== 'Salvar') {
+      return;
+    }
+
+    try {
+      await backend.saveVoiceExample(text, 'clipboard_prompt');
+      vscode.window.showInformationMessage('Prompt do clipboard salvo como exemplo de voz.');
+    } catch (error) {
+      vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Falha ao salvar clipboard como exemplo de voz');
+    }
+  }));
+
   context.subscriptions.push(vscode.commands.registerCommand('linkedinDevCompanion.showDashboard', async () => {
     try {
       const dashboard = await backend.dashboard();

@@ -42,7 +42,7 @@ npm run compile
 
 Depois abra a pasta `vscode-extension` no VS Code e use `F5` para iniciar uma Extension Development Host.
 
-Se o VS Code perguntar `Select debugger`, abra novamente a pasta `vscode-extension` ou a raiz do projeto apos este commit e escolha a configuracao `Run LinkedIn Dev Companion Extension`. A janela nova que abrir e a Extension Development Host; nela use `Ctrl+Shift+P` e procure por `LinkedIn Dev Companion`.
+Se voce apertar `F5` dentro de `vscode-extension`, a Extension Development Host abre carregando a pasta pai `Automatatizador`. Se apertar `F5` na raiz do projeto, ela abre a propria raiz. A janela nova que abrir e a Extension Development Host; nela use `Ctrl+Shift+P` e procure por `LinkedIn Dev Companion`.
 
 Comandos uteis na Extension Development Host:
 
@@ -50,6 +50,18 @@ Comandos uteis na Extension Development Host:
 - `LinkedIn Dev Companion: Gerar rascunho de hoje`
 - `LinkedIn Dev Companion: Ver rascunhos pendentes`
 - `LinkedIn Dev Companion: Abrir dashboard local`
+- `LinkedIn Dev Companion: Salvar selecao como exemplo de voz`
+- `LinkedIn Dev Companion: Salvar clipboard como exemplo de voz`
+
+## Como a extensao deve funcionar
+
+Durante desenvolvimento da propria extensao, `F5` abre uma segunda janela do VS Code com a extensao carregada temporariamente. Essa janela e apenas um ambiente de teste.
+
+No uso real, a extensao deve ser empacotada e instalada uma vez. Depois disso, voce abre qualquer projeto normalmente no VS Code e ela acompanha aquele workspace, enviando eventos para o daemon local.
+
+O daemon Rust e quem guarda a memoria local. A extensao captura sinais do projeto aberto, como arquivos editados, linguagens, branch/remoto Git e commits observados. Os exemplos de voz sao salvos explicitamente pelo usuario, por selecao, input manual ou clipboard.
+
+Por privacidade e limitacao da API publica do VS Code, a extensao nao le automaticamente o historico do Copilot Chat. Para usar seus prompts como personalidade, copie o texto do chat e rode `LinkedIn Dev Companion: Salvar clipboard como exemplo de voz`, ou selecione um texto em um arquivo e rode `LinkedIn Dev Companion: Salvar selecao como exemplo de voz`.
 
 ## Endpoints principais
 

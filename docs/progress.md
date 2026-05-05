@@ -50,6 +50,9 @@ A fase 1 do LinkedIn Dev Companion foi implementada como MVP local-first e publi
 - Adicionado comando `LinkedIn Dev Companion: Verificar daemon local`.
 - Se o daemon estiver offline, a extensao avisa e oferece copiar `cargo run -p ldc-daemon`.
 - README atualizado com o fluxo correto: iniciar daemon, abrir Extension Development Host e procurar comandos via `Ctrl+Shift+P`.
+- Configuracao de F5 agora abre uma pasta alvo explicita, evitando cair no ultimo workspace usado pelo VS Code.
+- Adicionado comando `LinkedIn Dev Companion: Salvar clipboard como exemplo de voz` para capturar prompts/chats copiados conscientemente pelo usuario.
+- Decisao de produto registrada: a extensao nao ingere historico do Copilot Chat automaticamente; prompts entram por acao explicita do usuario.
 
 ## Fluxos disponiveis
 
@@ -141,6 +144,8 @@ npm run compile
 ```
 
 Depois pressione `F5` e selecione `Run LinkedIn Dev Companion Extension`. Na janela nova, use `Ctrl+Shift+P` e busque `LinkedIn Dev Companion`.
+
+Para alimentar personalidade com prompts do chat, copie o texto do prompt e use `LinkedIn Dev Companion: Salvar clipboard como exemplo de voz` na Extension Development Host.
 
 ## Proximos passos recomendados
 
