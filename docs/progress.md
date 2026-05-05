@@ -43,6 +43,14 @@ A fase 1 do LinkedIn Dev Companion foi implementada como MVP local-first e publi
 - Score local simples de estilo gravado em `generated_drafts.style_score`.
 - Endpoint `POST /personality/examples/ranked` para recuperar exemplos de voz por similaridade local.
 
+## Avanco de testabilidade antes da fase 3
+
+- Adicionadas configuracoes `.vscode/launch.json` e `.vscode/tasks.json` na raiz e em `vscode-extension/`.
+- `F5` agora deve abrir a configuracao `Run LinkedIn Dev Companion Extension` sem cair no seletor generico de debugger.
+- Adicionado comando `LinkedIn Dev Companion: Verificar daemon local`.
+- Se o daemon estiver offline, a extensao avisa e oferece copiar `cargo run -p ldc-daemon`.
+- README atualizado com o fluxo correto: iniciar daemon, abrir Extension Development Host e procurar comandos via `Ctrl+Shift+P`.
+
 ## Fluxos disponiveis
 
 1. A extensao envia eventos para `POST /events`.
@@ -132,8 +140,11 @@ npm install
 npm run compile
 ```
 
+Depois pressione `F5` e selecione `Run LinkedIn Dev Companion Extension`. Na janela nova, use `Ctrl+Shift+P` e busque `LinkedIn Dev Companion`.
+
 ## Proximos passos recomendados
 
+- Validar manualmente a extensao via Extension Development Host antes de entrar na fase 3.
 - Integrar `ldc-copilot` ao pipeline diario para enriquecer o resumo tecnico com commits/diffs.
 - Criar UI dedicada de revisao em Webview, em vez de usar documento Markdown temporario.
 - Adicionar keyring do sistema operacional para tokens externos.

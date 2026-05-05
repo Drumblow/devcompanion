@@ -42,6 +42,15 @@ npm run compile
 
 Depois abra a pasta `vscode-extension` no VS Code e use `F5` para iniciar uma Extension Development Host.
 
+Se o VS Code perguntar `Select debugger`, abra novamente a pasta `vscode-extension` ou a raiz do projeto apos este commit e escolha a configuracao `Run LinkedIn Dev Companion Extension`. A janela nova que abrir e a Extension Development Host; nela use `Ctrl+Shift+P` e procure por `LinkedIn Dev Companion`.
+
+Comandos uteis na Extension Development Host:
+
+- `LinkedIn Dev Companion: Verificar daemon local`
+- `LinkedIn Dev Companion: Gerar rascunho de hoje`
+- `LinkedIn Dev Companion: Ver rascunhos pendentes`
+- `LinkedIn Dev Companion: Abrir dashboard local`
+
 ## Endpoints principais
 
 - `GET /health`

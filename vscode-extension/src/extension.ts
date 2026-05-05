@@ -21,6 +21,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const isHealthy = await backend.health();
   status.text = isHealthy ? 'LDC: ativo' : 'LDC: daemon offline';
+  if (!isHealthy) {
+    void showDaemonOfflineMessage();
+  }
 
   context.subscriptions.push(vscode.commands.registerCommand('linkedinDevCompanion.generateDraft', async () => {
     try {
@@ -78,6 +81,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     } catch (error) {
       vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Falha ao abrir dashboard');
     }
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand('linkedinDevCompanion.checkDaemon', async () => {
+    const healthy = await backend.health();
+    status.text = healthy ? 'LDC: ativo' : 'LDC: daemon offline';
+    if (healthy) {
+      vscode.window.showInformationMessage('LinkedIn Dev Companion: daemon local ativo em http://127.0.0.1:8787.');
+      return;
+    }
+    await showDaemonOfflineMessage();
   }));
 }
 
@@ -140,4 +153,16 @@ function renderDashboard(dashboard: Awaited<ReturnType<RustBackend['dashboard']>
     '',
     recentEvents
   ].join('\n');
+}
+
+async function showDaemonOfflineMessage(): Promise<void> {
+  const action = await vscode.window.showWarningMessage(
+    'LinkedIn Dev Companion: daemon local offline. Inicie o backend antes de gerar rascunhos.',
+    'Copiar comando'
+  );
+
+  if (action === 'Copiar comando') {
+    await vscode.env.clipboard.writeText('cargo run -p ldc-daemon');
+    vscode.window.showInformationMessage('Comando copiado. Execute na raiz do projeto Automatatizador.');
+  }
 }

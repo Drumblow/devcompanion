@@ -31,6 +31,10 @@
       {
         "command": "linkedinDevCompanion.showDashboard",
         "title": "LinkedIn Dev Companion: Abrir dashboard local"
+      },
+      {
+        "command": "linkedinDevCompanion.checkDaemon",
+        "title": "LinkedIn Dev Companion: Verificar daemon local"
       }
     ],
     "configuration": {
