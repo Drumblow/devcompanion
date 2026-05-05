@@ -1,0 +1,10 @@
+target/
+node_modules/
+out/
+dist/
+*.vsix
+.env
+.ldc/
+*.db
+*.db-shm
+*.db-wal

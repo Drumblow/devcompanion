@@ -1,0 +1,11 @@
+[server]
+host = "127.0.0.1"
+port = 8787
+
+[storage]
+database_path = ".ldc/linkedin-dev-companion.db"
+
+[content]
+auto_publish = false
+character_limit = 3000
+draft_model = "local-template-v1"

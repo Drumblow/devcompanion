@@ -1,0 +1,57 @@
+{
+  "name": "linkedin-dev-companion",
+  "displayName": "LinkedIn Dev Companion",
+  "description": "Captura sinais reais do desenvolvimento e revisa rascunhos locais para LinkedIn.",
+  "version": "0.1.0",
+  "publisher": "local-first",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "linkedinDevCompanion.generateDraft",
+        "title": "LinkedIn Dev Companion: Gerar rascunho de hoje"
+      },
+      {
+        "command": "linkedinDevCompanion.showPendingDrafts",
+        "title": "LinkedIn Dev Companion: Ver rascunhos pendentes"
+      },
+      {
+        "command": "linkedinDevCompanion.saveVoiceExample",
+        "title": "LinkedIn Dev Companion: Salvar selecao como exemplo de voz"
+      }
+    ],
+    "configuration": {
+      "title": "LinkedIn Dev Companion",
+      "properties": {
+        "linkedinDevCompanion.backendUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8787",
+          "description": "URL local do daemon Rust."
+        },
+        "linkedinDevCompanion.eventDebounceMs": {
+          "type": "number",
+          "default": 5000,
+          "description": "Intervalo minimo entre eventos de edicao enviados ao daemon."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.100.0",
+    "typescript": "^5.9.0"
+  }
+}
