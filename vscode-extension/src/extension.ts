@@ -92,17 +92,26 @@ async function showDraftReview(backend: RustBackend, draft: Draft): Promise<void
 
   const action = await vscode.window.showInformationMessage(
     `Rascunho #${draft.id} pendente de aprovacao manual`,
-    'Aprovar como esta',
+    'Aprovar texto aberto',
+    'Rejeitar',
     'Copiar para clipboard'
   );
 
-  if (action === 'Aprovar como esta') {
-    await backend.approveDraft(draft.id);
+  if (action === 'Aprovar texto aberto') {
+    await backend.approveDraft(draft.id, document.getText());
     vscode.window.showInformationMessage(`Rascunho #${draft.id} aprovado localmente.`);
   }
 
+  if (action === 'Rejeitar') {
+    const reason = await vscode.window.showInputBox({ prompt: 'Motivo da rejeicao para melhorar o proximo rascunho' });
+    if (reason) {
+      await backend.rejectDraft(draft.id, reason);
+      vscode.window.showInformationMessage(`Rascunho #${draft.id} rejeitado localmente.`);
+    }
+  }
+
   if (action === 'Copiar para clipboard') {
-    await vscode.env.clipboard.writeText(draft.content);
+    await vscode.env.clipboard.writeText(document.getText());
     vscode.window.showInformationMessage('Rascunho copiado.');
   }
 }
@@ -125,6 +134,7 @@ function renderDashboard(dashboard: Awaited<ReturnType<RustBackend['dashboard']>
     `Projetos: ${summary.projects.join(', ') || 'nenhum'}`,
     `Linguagens: ${languages}`,
     `Rascunhos pendentes: ${dashboard.pending_drafts.length}`,
+    `Score de estilo dos pendentes: ${dashboard.pending_drafts.map(draft => draft.style_score ?? 0).join(', ') || 'nenhum'}`,
     '',
     '## Eventos recentes',
     '',

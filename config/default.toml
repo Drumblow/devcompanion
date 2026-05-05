@@ -8,4 +8,14 @@ database_path = ".ldc/linkedin-dev-companion.db"
 [content]
 auto_publish = false
 character_limit = 3000
-draft_model = "local-template-v1"
+draft_model = "local-template-v2"
+
+[llm]
+provider = "template"
+openai_api_key_env = "OPENAI_API_KEY"
+reasoning_effort = "medium"
+
+[copilot]
+cli_path = "copilot"
+model = "copilot-latest"
+github_token_env = "COPILOT_GITHUB_TOKEN"

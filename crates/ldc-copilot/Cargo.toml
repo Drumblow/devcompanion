@@ -1,0 +1,9 @@
+[package]
+name = "ldc-copilot"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true

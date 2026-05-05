@@ -5,6 +5,9 @@ export interface Draft {
   session_date: string;
   content: string;
   status: string;
+  style_score?: number;
+  rejected_at?: string;
+  rejection_reason?: string;
 }
 
 export interface DailySummary {
@@ -93,6 +96,18 @@ export class RustBackend {
     });
     if (!response.ok) {
       throw new Error(`Falha ao aprovar rascunho: ${response.status}`);
+    }
+    return response.json() as Promise<Draft>;
+  }
+
+  async rejectDraft(id: number, reason: string): Promise<Draft> {
+    const response = await fetch(`${backendUrl()}/posts/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason })
+    });
+    if (!response.ok) {
+      throw new Error(`Falha ao rejeitar rascunho: ${response.status}`);
     }
     return response.json() as Promise<Draft>;
   }

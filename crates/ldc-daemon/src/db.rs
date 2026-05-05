@@ -1,6 +1,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use ldc_core::{
-    CodingEvent, DailySummary, GeneratedDraft, RecentEvent, StoredEvent, VoiceExampleRequest,
+    CodingEvent, DailySummary, GeneratedDraft, RankedVoiceExample, RecentEvent, StoredEvent,
+    VoiceExampleRequest,
 };
 use serde_json::{json, Value};
 use sqlx::{
@@ -91,14 +92,39 @@ impl Database {
                 status TEXT NOT NULL,
                 model TEXT NOT NULL,
                 context_audit TEXT NOT NULL,
+                style_score REAL,
                 created_at TEXT NOT NULL,
-                approved_at TEXT
+                approved_at TEXT,
+                rejected_at TEXT,
+                rejection_reason TEXT
             );
             "#,
         )
         .execute(&self.pool)
         .await?;
 
+        self.ensure_column("generated_drafts", "style_score", "REAL")
+            .await?;
+        self.ensure_column("generated_drafts", "rejected_at", "TEXT")
+            .await?;
+        self.ensure_column("generated_drafts", "rejection_reason", "TEXT")
+            .await?;
+
+        Ok(())
+    }
+
+    async fn ensure_column(&self, table: &str, column: &str, definition: &str) -> sqlx::Result<()> {
+        let pragma = format!("PRAGMA table_info({table})");
+        let rows = sqlx::query(&pragma).fetch_all(&self.pool).await?;
+        let exists = rows.iter().any(|row| {
+            row.try_get::<String, _>("name")
+                .map(|name| name == column)
+                .unwrap_or(false)
+        });
+        if !exists {
+            let alter = format!("ALTER TABLE {table} ADD COLUMN {column} {definition}");
+            sqlx::query(&alter).execute(&self.pool).await?;
+        }
         Ok(())
     }
 
@@ -278,22 +304,51 @@ impl Database {
             .collect()
     }
 
+    pub async fn ranked_voice_examples(
+        &self,
+        query: &str,
+        limit: i64,
+    ) -> anyhow::Result<Vec<RankedVoiceExample>> {
+        let rows = sqlx::query(
+            "SELECT id, text, context, created_at FROM voice_examples ORDER BY id DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut examples = Vec::new();
+        for row in rows {
+            let text: String = row.try_get("text")?;
+            let created_at_text: String = row.try_get("created_at")?;
+            examples.push(RankedVoiceExample {
+                id: row.try_get("id")?,
+                score: text_similarity(query, &text),
+                text,
+                context: row.try_get("context")?,
+                created_at: DateTime::parse_from_rfc3339(&created_at_text)?.with_timezone(&Utc),
+            });
+        }
+        examples.sort_by(|left, right| right.score.total_cmp(&left.score));
+        examples.truncate(limit.clamp(1, 20) as usize);
+        Ok(examples)
+    }
+
     pub async fn insert_draft(
         &self,
         date: NaiveDate,
         content: String,
         model: &str,
         context_audit: Value,
+        style_score: Option<f64>,
     ) -> anyhow::Result<GeneratedDraft> {
         let created_at = Utc::now();
         let audit = serde_json::to_string(&context_audit)?;
         let result = sqlx::query(
-            "INSERT INTO generated_drafts (session_date, content, status, model, context_audit, created_at) VALUES (?, ?, 'pending_approval', ?, ?, ?)"
+            "INSERT INTO generated_drafts (session_date, content, status, model, context_audit, style_score, created_at) VALUES (?, ?, 'pending_approval', ?, ?, ?, ?)"
         )
         .bind(date.to_string())
         .bind(content)
         .bind(model)
         .bind(audit)
+        .bind(style_score)
         .bind(created_at.to_rfc3339())
         .execute(&self.pool)
         .await?;
@@ -360,12 +415,36 @@ impl Database {
 
         Ok(Some(self.get_draft(id).await?))
     }
+
+    pub async fn reject_draft(
+        &self,
+        id: i64,
+        reason: String,
+    ) -> anyhow::Result<Option<GeneratedDraft>> {
+        let rejected_at = Utc::now().to_rfc3339();
+        let affected = sqlx::query(
+            "UPDATE generated_drafts SET status = 'rejected', rejected_at = ?, rejection_reason = ? WHERE id = ?",
+        )
+        .bind(rejected_at)
+        .bind(reason)
+        .bind(id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+
+        if affected == 0 {
+            return Ok(None);
+        }
+
+        Ok(Some(self.get_draft(id).await?))
+    }
 }
 
 fn row_to_draft(row: sqlx::sqlite::SqliteRow) -> anyhow::Result<GeneratedDraft> {
     let date_text: String = row.try_get("session_date")?;
     let created_at_text: String = row.try_get("created_at")?;
     let approved_at_text: Option<String> = row.try_get("approved_at")?;
+    let rejected_at_text: Option<String> = row.try_get("rejected_at")?;
     let audit_text: String = row.try_get("context_audit")?;
 
     Ok(GeneratedDraft {
@@ -375,10 +454,15 @@ fn row_to_draft(row: sqlx::sqlite::SqliteRow) -> anyhow::Result<GeneratedDraft> 
         status: row.try_get("status")?,
         model: row.try_get("model")?,
         context_audit: serde_json::from_str(&audit_text).unwrap_or_else(|_| json!({})),
+        style_score: row.try_get("style_score")?,
         created_at: DateTime::parse_from_rfc3339(&created_at_text)?.with_timezone(&Utc),
         approved_at: approved_at_text
             .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
             .map(|value| value.with_timezone(&Utc)),
+        rejected_at: rejected_at_text
+            .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
+            .map(|value| value.with_timezone(&Utc)),
+        rejection_reason: row.try_get("rejection_reason")?,
     })
 }
 
@@ -396,4 +480,25 @@ fn row_to_recent_event(row: sqlx::sqlite::SqliteRow) -> anyhow::Result<RecentEve
         files_modified: serde_json::from_str(&files_text).unwrap_or_default(),
         languages: serde_json::from_str(&languages_text).unwrap_or_default(),
     })
+}
+
+fn text_similarity(query: &str, text: &str) -> f64 {
+    let query_tokens = tokens(query);
+    let text_tokens = tokens(text);
+    if query_tokens.is_empty() || text_tokens.is_empty() {
+        return 0.0;
+    }
+    let overlap = query_tokens
+        .iter()
+        .filter(|token| text_tokens.contains(token))
+        .count() as f64;
+    let denominator = query_tokens.len().max(text_tokens.len()) as f64;
+    (overlap / denominator * 100.0).round() / 100.0
+}
+
+fn tokens(text: &str) -> Vec<String> {
+    text.split(|character: char| !character.is_alphanumeric())
+        .map(|token| token.trim().to_ascii_lowercase())
+        .filter(|token| token.len() > 3)
+        .collect()
 }

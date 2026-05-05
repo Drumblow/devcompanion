@@ -1,4 +1,4 @@
-use crate::{draft::build_daily_draft, error::ApiError, AppState};
+use crate::{error::ApiError, AppState};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -8,9 +8,10 @@ use axum::{
 use chrono::{NaiveDate, Utc};
 use ldc_core::{
     ApproveDraftRequest, CodingEvent, DashboardSnapshot, GenerateDraftRequest, HealthResponse,
-    VoiceExampleRequest,
+    RejectDraftRequest, VoiceExampleRequest,
 };
 use ldc_ingestor::normalize_event;
+use ldc_llm::DraftInput;
 use serde_json::json;
 
 pub fn routes() -> Router<AppState> {
@@ -23,7 +24,9 @@ pub fn routes() -> Router<AppState> {
         .route("/posts/generate", post(generate_post))
         .route("/posts/pending", get(pending_posts))
         .route("/posts/{id}/approve", post(approve_post))
+        .route("/posts/{id}/reject", post(reject_post))
         .route("/personality/examples", post(add_voice_example))
+        .route("/personality/examples/ranked", post(ranked_voice_examples))
 }
 
 async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, ApiError> {
@@ -129,10 +132,23 @@ async fn generate_post(
         .recent_voice_examples(3)
         .await
         .map_err(ApiError::internal)?;
-    let (content, audit) = build_daily_draft(&summary, &examples);
+    let output = state
+        .llm_provider
+        .generate_draft(DraftInput {
+            summary,
+            voice_examples: examples,
+        })
+        .await
+        .map_err(ApiError::internal)?;
     let draft = state
         .db
-        .insert_draft(date, content, &state.draft_model, audit)
+        .insert_draft(
+            date,
+            output.content,
+            &output.model,
+            output.audit,
+            Some(output.style_score),
+        )
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(json!(draft)))
@@ -161,6 +177,26 @@ async fn approve_post(
     Ok(Json(json!(draft)))
 }
 
+async fn reject_post(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(request): Json<RejectDraftRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if request.reason.trim().len() < 3 {
+        return Err(ApiError::bad_request(
+            "motivo de rejeicao deve ter pelo menos 3 caracteres",
+        ));
+    }
+
+    let draft = state
+        .db
+        .reject_draft(id, request.reason)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| ApiError::not_found("rascunho nao encontrado"))?;
+    Ok(Json(json!(draft)))
+}
+
 async fn add_voice_example(
     State(state): State<AppState>,
     Json(request): Json<VoiceExampleRequest>,
@@ -176,4 +212,21 @@ async fn add_voice_example(
         .await
         .map_err(ApiError::internal)?;
     Ok((StatusCode::CREATED, Json(json!({ "id": id }))))
+}
+
+async fn ranked_voice_examples(
+    State(state): State<AppState>,
+    Json(request): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let query = request["query"].as_str().unwrap_or_default();
+    if query.trim().is_empty() {
+        return Err(ApiError::bad_request("query e obrigatoria"));
+    }
+
+    let examples = state
+        .db
+        .ranked_voice_examples(query, 5)
+        .await
+        .map_err(ApiError::internal)?;
+    Ok(Json(json!(examples)))
 }

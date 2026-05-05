@@ -96,8 +96,11 @@ pub struct GeneratedDraft {
     pub status: String,
     pub model: String,
     pub context_audit: Value,
+    pub style_score: Option<f64>,
     pub created_at: DateTime<Utc>,
     pub approved_at: Option<DateTime<Utc>>,
+    pub rejected_at: Option<DateTime<Utc>>,
+    pub rejection_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,9 +109,23 @@ pub struct ApproveDraftRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RejectDraftRequest {
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VoiceExampleRequest {
     pub text: String,
     pub context: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RankedVoiceExample {
+    pub id: i64,
+    pub text: String,
+    pub context: Option<String>,
+    pub score: f64,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -17,6 +17,15 @@ MVP local-first para acompanhar atividade no VS Code, registrar memoria local e 
 - Endpoint de dashboard local com resumo do dia, eventos recentes e rascunhos pendentes.
 - Comando da extensao para abrir o dashboard local em Markdown.
 
+## Proximos passos recomendados implementados
+
+- Teste HTTP de integracao cobrindo ingestao, geracao, aprovacao editada e rejeicao.
+- Aprovacao na extensao persiste o texto editado no documento temporario.
+- Rejeicao de rascunho com motivo para alimentar o feedback loop.
+- Interface `LlmProvider` com provider local `template` e provider OpenAI Responses API configuravel.
+- Adaptador Copilot CLI isolado em crate proprio.
+- Score simples de aderencia ao perfil de voz e exemplos ranqueados por similaridade local.
+
 ## Como rodar
 
 ```powershell
@@ -43,6 +52,24 @@ Depois abra a pasta `vscode-extension` no VS Code e use `F5` para iniciar uma Ex
 - `POST /posts/generate`
 - `GET /posts/pending`
 - `POST /posts/{id}/approve`
+- `POST /posts/{id}/reject`
 - `POST /personality/examples`
+- `POST /personality/examples/ranked`
+
+## Configuracao de providers
+
+Por padrao o projeto usa `LDC_LLM_PROVIDER=template`, sem tokens externos.
+
+Para testar geracao via OpenAI Responses API:
+
+```powershell
+$env:LDC_LLM_PROVIDER = "openai"
+$env:LDC_DRAFT_MODEL = "gpt-5.4"
+$env:LDC_REASONING_EFFORT = "medium"
+$env:OPENAI_API_KEY = "sk-..."
+cargo run -p ldc-daemon
+```
+
+O adaptador Copilot CLI ja existe como crate isolado (`ldc-copilot`) para a proxima etapa de analise tecnica via subprocess.
 
 Consulte [docs/progress.md](docs/progress.md) para o handoff detalhado.

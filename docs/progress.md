@@ -32,6 +32,17 @@ A fase 1 do LinkedIn Dev Companion foi implementada como MVP local-first e publi
 - `SessionManager.gitContext()` para enriquecer eventos com branch e remoto Git.
 - Comando `LinkedIn Dev Companion: Abrir dashboard local` renderizando o snapshot em Markdown.
 
+## Proximos passos recomendados implementados apos a fase 2
+
+- Teste HTTP de integracao do daemon usando o router Axum real.
+- Aprovacao de rascunho com persistencia do texto editado pelo usuario.
+- Rejeicao de rascunho com motivo em `POST /posts/{id}/reject`.
+- Interface `LlmProvider` em `ldc-llm`, com provider `TemplateProvider` e `OpenAiProvider` via Responses API.
+- Configuracao de provider por ambiente: `LDC_LLM_PROVIDER`, `LDC_DRAFT_MODEL`, `LDC_REASONING_EFFORT` e `OPENAI_API_KEY`.
+- Crate `ldc-copilot` com adaptador de subprocess para `copilot -p ... -s --no-ask-user`.
+- Score local simples de estilo gravado em `generated_drafts.style_score`.
+- Endpoint `POST /personality/examples/ranked` para recuperar exemplos de voz por similaridade local.
+
 ## Fluxos disponiveis
 
 1. A extensao envia eventos para `POST /events`.
@@ -50,7 +61,9 @@ A fase 1 do LinkedIn Dev Companion foi implementada como MVP local-first e publi
 - `POST /posts/generate`: cria um rascunho local para a data informada ou para hoje.
 - `GET /posts/pending`: lista rascunhos aguardando aprovacao.
 - `POST /posts/{id}/approve`: aprova um rascunho localmente.
+- `POST /posts/{id}/reject`: rejeita um rascunho localmente com motivo.
 - `POST /personality/examples`: salva exemplos de voz aprovados explicitamente.
+- `POST /personality/examples/ranked`: lista exemplos de voz ranqueados por similaridade textual local.
 
 ## Decisoes importantes
 
@@ -75,6 +88,8 @@ Invoke-RestMethod http://127.0.0.1:8787/events -Method Post -ContentType 'applic
 Invoke-RestMethod http://127.0.0.1:8787/posts/generate -Method Post -ContentType 'application/json' -Body '{}'
 Invoke-RestMethod http://127.0.0.1:8787/posts/pending
 Invoke-RestMethod http://127.0.0.1:8787/dashboard/today
+Invoke-RestMethod http://127.0.0.1:8787/personality/examples -Method Post -ContentType 'application/json' -Body '{"text":"Hoje eu prefiro explicar o trade-off tecnico sem vender solucao magica.","context":"manual"}'
+Invoke-RestMethod http://127.0.0.1:8787/personality/examples/ranked -Method Post -ContentType 'application/json' -Body '{"query":"trade-off tecnico"}'
 ```
 
 ## Validacao executada na fase 2
@@ -82,6 +97,7 @@ Invoke-RestMethod http://127.0.0.1:8787/dashboard/today
 - `cargo fmt --all`: ok.
 - `cargo check`: ok.
 - `cargo test`: ok, incluindo teste do `ldc-ingestor`.
+- Teste HTTP do daemon: ok, cobrindo gerar, aprovar texto editado e rejeitar com motivo.
 - `npm run compile` em `vscode-extension`: ok.
 - `GET /health`: ok com o daemon rodando.
 - `POST /events` com `event_type` em maiusculas foi normalizado para `document_edit`.
@@ -91,6 +107,22 @@ Invoke-RestMethod http://127.0.0.1:8787/dashboard/today
 - Evento `git_commit` foi persistido com branch `main` e remoto do GitHub.
 - `GET /events/recent` retornou os eventos normalizados.
 - `GET /dashboard/today` retornou resumo com `event_count = 3`, `git_commits = 1`, linguagens agregadas e nenhum rascunho pendente.
+
+## Validacao executada apos os proximos passos recomendados
+
+- `cargo fmt --all`: ok.
+- `cargo check`: ok.
+- `cargo test`: ok.
+- `npm run compile` em `vscode-extension`: ok.
+- `get_errors` do VS Code: sem erros.
+- Teste HTTP de integracao `http_flow_generates_approves_and_rejects_drafts`: ok.
+- Daemon subiu contra o banco local existente e aplicou migracao incremental das colunas novas.
+- `POST /personality/examples`: salvou exemplo de voz local.
+- `POST /personality/examples/ranked`: retornou exemplo com score `0.29` para consulta `trade-off tecnico com contexto real`.
+- `POST /posts/generate`: criou rascunho com `model = local-template-v2` e `style_score = 0.09`.
+- `POST /posts/{id}/approve`: persistiu `approved_content` editado manualmente.
+- `POST /posts/{id}/reject`: gravou `status = rejected` e `rejection_reason`.
+- `GET /dashboard/today`: retornou resumo, eventos recentes e lista de pendentes vazia apos aprovar/rejeitar.
 
 Para a extensao:
 
@@ -102,11 +134,8 @@ npm run compile
 
 ## Proximos passos recomendados
 
-- Adicionar testes de integracao HTTP para o daemon.
-- Persistir edicoes feitas pelo usuario no documento temporario antes de aprovar um rascunho.
-- Trocar `local-template-v1` por uma interface real de provider (`LlmProvider`).
-- Implementar adaptador Copilot CLI como crate isolado.
-- Integrar OpenAI Responses API para geracao final com `reasoning.effort = medium`.
-- Adicionar tela de aprovacao com edicao persistida, nao apenas documento temporario.
-- Implementar rejeicao com motivo para alimentar o feedback loop.
-- Evoluir memoria de voz para score de aderencia e exemplos ranqueados.
+- Integrar `ldc-copilot` ao pipeline diario para enriquecer o resumo tecnico com commits/diffs.
+- Criar UI dedicada de revisao em Webview, em vez de usar documento Markdown temporario.
+- Adicionar keyring do sistema operacional para tokens externos.
+- Adicionar testes E2E da extensao no Extension Development Host.
+- Evoluir similaridade local para embeddings reais quando OpenAI estiver configurado.

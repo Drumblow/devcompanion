@@ -1,0 +1,13 @@
+[package]
+name = "ldc-llm"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+ldc-core = { path = "../ldc-core" }
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
