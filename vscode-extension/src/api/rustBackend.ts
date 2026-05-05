@@ -7,6 +7,35 @@ export interface Draft {
   status: string;
 }
 
+export interface DailySummary {
+  date: string;
+  event_count: number;
+  total_time_minutes: number;
+  lines_added: number;
+  lines_removed: number;
+  git_commits: number;
+  projects: string[];
+  languages: Record<string, number>;
+  files_modified: string[];
+  voice_examples: number;
+}
+
+export interface RecentEvent {
+  id: number;
+  timestamp: string;
+  event_type: string;
+  project_name?: string;
+  git_branch?: string;
+  files_modified: string[];
+  languages: Record<string, number>;
+}
+
+export interface DashboardSnapshot {
+  summary: DailySummary;
+  recent_events: RecentEvent[];
+  pending_drafts: Draft[];
+}
+
 export class RustBackend {
   async health(): Promise<boolean> {
     try {
@@ -46,6 +75,14 @@ export class RustBackend {
       throw new Error(`Falha ao buscar rascunhos: ${response.status}`);
     }
     return response.json() as Promise<Draft[]>;
+  }
+
+  async dashboard(): Promise<DashboardSnapshot> {
+    const response = await fetch(`${backendUrl()}/dashboard/today`);
+    if (!response.ok) {
+      throw new Error(`Falha ao buscar dashboard: ${response.status}`);
+    }
+    return response.json() as Promise<DashboardSnapshot>;
   }
 
   async approveDraft(id: number, approvedContent?: string): Promise<Draft> {

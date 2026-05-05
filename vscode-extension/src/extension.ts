@@ -1,12 +1,14 @@
 import * as vscode from 'vscode';
 import { RustBackend, Draft } from './api/rustBackend';
 import { EventCollector } from './tracker/eventCollector';
+import { GitWatcher } from './tracker/gitWatcher';
 import { SessionManager } from './tracker/sessionManager';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const backend = new RustBackend();
   const session = new SessionManager(context);
   const collector = new EventCollector(backend, session);
+  const gitWatcher = new GitWatcher(backend, session);
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 
   status.text = 'LDC: conectando';
@@ -14,7 +16,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   status.show();
 
   collector.start();
-  context.subscriptions.push(collector, status);
+  gitWatcher.start();
+  context.subscriptions.push(collector, gitWatcher, status);
 
   const isHealthy = await backend.health();
   status.text = isHealthy ? 'LDC: ativo' : 'LDC: daemon offline';
@@ -63,6 +66,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Falha ao salvar exemplo de voz');
     }
   }));
+
+  context.subscriptions.push(vscode.commands.registerCommand('linkedinDevCompanion.showDashboard', async () => {
+    try {
+      const dashboard = await backend.dashboard();
+      const document = await vscode.workspace.openTextDocument({
+        language: 'markdown',
+        content: renderDashboard(dashboard)
+      });
+      await vscode.window.showTextDocument(document, { preview: false });
+    } catch (error) {
+      vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Falha ao abrir dashboard');
+    }
+  }));
 }
 
 export function deactivate(): void {}
@@ -89,4 +105,29 @@ async function showDraftReview(backend: RustBackend, draft: Draft): Promise<void
     await vscode.env.clipboard.writeText(draft.content);
     vscode.window.showInformationMessage('Rascunho copiado.');
   }
+}
+
+function renderDashboard(dashboard: Awaited<ReturnType<RustBackend['dashboard']>>): string {
+  const summary = dashboard.summary;
+  const languages = Object.entries(summary.languages).map(([language, minutes]) => `${language}: ${minutes}`).join(', ') || 'nenhuma';
+  const recentEvents = dashboard.recent_events
+    .map(event => `- ${event.timestamp} | ${event.event_type} | ${(event.files_modified ?? []).join(', ') || 'sem arquivo'}`)
+    .join('\n') || '- nenhum evento recente';
+
+  return [
+    '# LinkedIn Dev Companion',
+    '',
+    `Data: ${summary.date}`,
+    `Eventos: ${summary.event_count}`,
+    `Tempo registrado: ${summary.total_time_minutes} min`,
+    `Linhas: +${summary.lines_added} / -${summary.lines_removed}`,
+    `Commits: ${summary.git_commits}`,
+    `Projetos: ${summary.projects.join(', ') || 'nenhum'}`,
+    `Linguagens: ${languages}`,
+    `Rascunhos pendentes: ${dashboard.pending_drafts.length}`,
+    '',
+    '## Eventos recentes',
+    '',
+    recentEvents
+  ].join('\n');
 }

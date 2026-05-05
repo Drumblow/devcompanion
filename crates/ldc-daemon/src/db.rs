@@ -1,5 +1,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
-use ldc_core::{CodingEvent, DailySummary, GeneratedDraft, StoredEvent, VoiceExampleRequest};
+use ldc_core::{
+    CodingEvent, DailySummary, GeneratedDraft, RecentEvent, StoredEvent, VoiceExampleRequest,
+};
 use serde_json::{json, Value};
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
@@ -42,6 +44,25 @@ impl Database {
                 lines_removed INTEGER NOT NULL DEFAULT 0,
                 time_spent_minutes INTEGER NOT NULL DEFAULT 0,
                 metadata TEXT NOT NULL
+            );
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS daily_sessions (
+                date TEXT PRIMARY KEY,
+                event_count INTEGER NOT NULL DEFAULT 0,
+                total_time_minutes INTEGER NOT NULL DEFAULT 0,
+                projects TEXT NOT NULL,
+                languages TEXT NOT NULL,
+                files_modified TEXT NOT NULL,
+                git_commits INTEGER NOT NULL DEFAULT 0,
+                lines_added INTEGER NOT NULL DEFAULT 0,
+                lines_removed INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
             );
             "#,
         )
@@ -120,6 +141,41 @@ impl Database {
             session_id: event.session_id,
             event_type: event.event_type,
         })
+    }
+
+    pub async fn refresh_daily_session(&self, date: NaiveDate) -> anyhow::Result<DailySummary> {
+        let summary = self.daily_summary(date).await?;
+        sqlx::query(
+            r#"
+            INSERT INTO daily_sessions (
+                date, event_count, total_time_minutes, projects, languages, files_modified,
+                git_commits, lines_added, lines_removed, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(date) DO UPDATE SET
+                event_count = excluded.event_count,
+                total_time_minutes = excluded.total_time_minutes,
+                projects = excluded.projects,
+                languages = excluded.languages,
+                files_modified = excluded.files_modified,
+                git_commits = excluded.git_commits,
+                lines_added = excluded.lines_added,
+                lines_removed = excluded.lines_removed,
+                updated_at = excluded.updated_at
+            "#,
+        )
+        .bind(date.to_string())
+        .bind(summary.event_count)
+        .bind(summary.total_time_minutes)
+        .bind(serde_json::to_string(&summary.projects)?)
+        .bind(serde_json::to_string(&summary.languages)?)
+        .bind(serde_json::to_string(&summary.files_modified)?)
+        .bind(summary.git_commits)
+        .bind(summary.lines_added)
+        .bind(summary.lines_removed)
+        .bind(Utc::now().to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+        Ok(summary)
     }
 
     pub async fn daily_summary(&self, date: NaiveDate) -> anyhow::Result<DailySummary> {
@@ -254,6 +310,17 @@ impl Database {
         rows.into_iter().map(row_to_draft).collect()
     }
 
+    pub async fn recent_events(&self, limit: i64) -> anyhow::Result<Vec<RecentEvent>> {
+        let rows = sqlx::query(
+            "SELECT id, timestamp, event_type, project_name, git_branch, files_modified, languages FROM coding_events ORDER BY id DESC LIMIT ?",
+        )
+        .bind(limit.clamp(1, 100))
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter().map(row_to_recent_event).collect()
+    }
+
     pub async fn get_draft(&self, id: i64) -> anyhow::Result<GeneratedDraft> {
         let row = sqlx::query("SELECT * FROM generated_drafts WHERE id = ?")
             .bind(id)
@@ -312,5 +379,21 @@ fn row_to_draft(row: sqlx::sqlite::SqliteRow) -> anyhow::Result<GeneratedDraft> 
         approved_at: approved_at_text
             .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
             .map(|value| value.with_timezone(&Utc)),
+    })
+}
+
+fn row_to_recent_event(row: sqlx::sqlite::SqliteRow) -> anyhow::Result<RecentEvent> {
+    let timestamp_text: String = row.try_get("timestamp")?;
+    let files_text: String = row.try_get("files_modified")?;
+    let languages_text: String = row.try_get("languages")?;
+
+    Ok(RecentEvent {
+        id: row.try_get("id")?,
+        timestamp: DateTime::parse_from_rfc3339(&timestamp_text)?.with_timezone(&Utc),
+        event_type: row.try_get("event_type")?,
+        project_name: row.try_get("project_name")?,
+        git_branch: row.try_get("git_branch")?,
+        files_modified: serde_json::from_str(&files_text).unwrap_or_default(),
+        languages: serde_json::from_str(&languages_text).unwrap_or_default(),
     })
 }

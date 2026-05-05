@@ -27,6 +27,10 @@
       {
         "command": "linkedinDevCompanion.saveVoiceExample",
         "title": "LinkedIn Dev Companion: Salvar selecao como exemplo de voz"
+      },
+      {
+        "command": "linkedinDevCompanion.showDashboard",
+        "title": "LinkedIn Dev Companion: Abrir dashboard local"
       }
     ],
     "configuration": {

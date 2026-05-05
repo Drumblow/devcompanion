@@ -9,6 +9,14 @@ MVP local-first para acompanhar atividade no VS Code, registrar memoria local e 
 - Extensao VS Code em TypeScript para capturar sinais basicos do editor.
 - Fluxo manual de geracao, visualizacao e aprovacao de rascunhos.
 
+## Fase 2 implementada
+
+- Ingestor Rust dedicado para normalizar eventos e remover sinais sensiveis de caminhos/metadados.
+- Agregacao diaria persistida em SQLite na tabela `daily_sessions`.
+- Captura de contexto Git na extensao: branch, remoto e ultimo commit observado.
+- Endpoint de dashboard local com resumo do dia, eventos recentes e rascunhos pendentes.
+- Comando da extensao para abrir o dashboard local em Markdown.
+
 ## Como rodar
 
 ```powershell
@@ -29,6 +37,8 @@ Depois abra a pasta `vscode-extension` no VS Code e use `F5` para iniciar uma Ex
 
 - `GET /health`
 - `POST /events`
+- `GET /events/recent`
+- `GET /dashboard/today`
 - `GET /sessions/{date}/summary`
 - `POST /posts/generate`
 - `GET /posts/pending`

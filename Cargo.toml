@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/ldc-core",
+    "crates/ldc-ingestor",
     "crates/ldc-daemon"
 ]
 resolver = "2"

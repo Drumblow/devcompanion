@@ -46,13 +46,16 @@ export class EventCollector implements vscode.Disposable {
       return;
     }
 
+    const git = await this.session.gitContext();
     const payload = {
       timestamp: new Date().toISOString(),
       session_id: this.session.sessionId,
       event_type: eventType,
       project: {
         name: this.session.workspaceName(),
-        path: this.session.workspacePath()
+        path: this.session.workspacePath(),
+        git_branch: git.branch,
+        git_remote: git.remote
       },
       activity: {
         files_modified: [vscode.workspace.asRelativePath(document.uri, false)],
@@ -70,13 +73,16 @@ export class EventCollector implements vscode.Disposable {
   }
 
   private async sendHeartbeat(): Promise<void> {
+    const git = await this.session.gitContext();
     const payload = {
       timestamp: new Date().toISOString(),
       session_id: this.session.sessionId,
       event_type: 'session_heartbeat',
       project: {
         name: this.session.workspaceName(),
-        path: this.session.workspacePath()
+        path: this.session.workspacePath(),
+        git_branch: git.branch,
+        git_remote: git.remote
       },
       activity: {
         time_spent_minutes: 1

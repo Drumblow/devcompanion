@@ -66,6 +66,24 @@ pub struct DailySummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentEvent {
+    pub id: i64,
+    pub timestamp: DateTime<Utc>,
+    pub event_type: String,
+    pub project_name: Option<String>,
+    pub git_branch: Option<String>,
+    pub files_modified: Vec<String>,
+    pub languages: BTreeMap<String, i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DashboardSnapshot {
+    pub summary: DailySummary,
+    pub recent_events: Vec<RecentEvent>,
+    pub pending_drafts: Vec<GeneratedDraft>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerateDraftRequest {
     pub date: Option<NaiveDate>,
 }

@@ -7,14 +7,18 @@ use axum::{
 };
 use chrono::{NaiveDate, Utc};
 use ldc_core::{
-    ApproveDraftRequest, CodingEvent, GenerateDraftRequest, HealthResponse, VoiceExampleRequest,
+    ApproveDraftRequest, CodingEvent, DashboardSnapshot, GenerateDraftRequest, HealthResponse,
+    VoiceExampleRequest,
 };
+use ldc_ingestor::normalize_event;
 use serde_json::json;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
         .route("/events", post(receive_event))
+        .route("/events/recent", get(recent_events))
+        .route("/dashboard/today", get(today_dashboard))
         .route("/sessions/{date}/summary", get(summary))
         .route("/posts/generate", post(generate_post))
         .route("/posts/pending", get(pending_posts))
@@ -46,12 +50,54 @@ async fn receive_event(
         return Err(ApiError::bad_request("event_type e obrigatorio"));
     }
 
+    let event = normalize_event(event).map_err(|error| ApiError::bad_request(error.to_string()))?;
+    let event_date = event.timestamp.unwrap_or_else(Utc::now).date_naive();
     let stored = state
         .db
         .insert_event(event)
         .await
         .map_err(ApiError::internal)?;
+    state
+        .db
+        .refresh_daily_session(event_date)
+        .await
+        .map_err(ApiError::internal)?;
     Ok((StatusCode::CREATED, Json(json!(stored))))
+}
+
+async fn recent_events(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    let events = state
+        .db
+        .recent_events(25)
+        .await
+        .map_err(ApiError::internal)?;
+    Ok(Json(json!(events)))
+}
+
+async fn today_dashboard(
+    State(state): State<AppState>,
+) -> Result<Json<DashboardSnapshot>, ApiError> {
+    let date = Utc::now().date_naive();
+    let summary = state
+        .db
+        .daily_summary(date)
+        .await
+        .map_err(ApiError::internal)?;
+    let recent_events = state
+        .db
+        .recent_events(10)
+        .await
+        .map_err(ApiError::internal)?;
+    let pending_drafts = state
+        .db
+        .pending_drafts()
+        .await
+        .map_err(ApiError::internal)?;
+    Ok(Json(DashboardSnapshot {
+        summary,
+        recent_events,
+        pending_drafts,
+    }))
 }
 
 async fn summary(
