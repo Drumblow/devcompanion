@@ -13,6 +13,11 @@ pub struct AppConfig {
     pub copilot_cli_path: String,
     pub copilot_model: String,
     pub copilot_github_token_env: Option<String>,
+    pub linkedin_enabled: bool,
+    pub linkedin_dry_run: bool,
+    pub linkedin_access_token: Option<String>,
+    pub linkedin_author_urn: Option<String>,
+    pub linkedin_api_version: String,
 }
 
 impl AppConfig {
@@ -50,6 +55,16 @@ impl AppConfig {
             .ok()
             .filter(|value| !value.is_empty())
             .or_else(|| Some("COPILOT_GITHUB_TOKEN".to_string()));
+        let linkedin_enabled = bool_env("LDC_LINKEDIN_ENABLED", false);
+        let linkedin_dry_run = bool_env("LDC_LINKEDIN_DRY_RUN", false);
+        let linkedin_access_token = env::var("LDC_LINKEDIN_ACCESS_TOKEN")
+            .ok()
+            .filter(|value| !value.is_empty());
+        let linkedin_author_urn = env::var("LDC_LINKEDIN_AUTHOR_URN")
+            .ok()
+            .filter(|value| !value.is_empty());
+        let linkedin_api_version =
+            env::var("LDC_LINKEDIN_API_VERSION").unwrap_or_else(|_| "202506".to_string());
 
         if let Some(parent) = database_path.parent() {
             fs::create_dir_all(parent)
@@ -68,6 +83,23 @@ impl AppConfig {
             copilot_cli_path,
             copilot_model,
             copilot_github_token_env,
+            linkedin_enabled,
+            linkedin_dry_run,
+            linkedin_access_token,
+            linkedin_author_urn,
+            linkedin_api_version,
         })
     }
+}
+
+fn bool_env(name: &str, default: bool) -> bool {
+    env::var(name)
+        .ok()
+        .map(|value| {
+            matches!(
+                value.to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(default)
 }

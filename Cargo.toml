@@ -3,6 +3,7 @@ members = [
     "crates/ldc-core",
     "crates/ldc-copilot",
     "crates/ldc-ingestor",
+    "crates/ldc-linkedin",
     "crates/ldc-llm",
     "crates/ldc-daemon"
 ]

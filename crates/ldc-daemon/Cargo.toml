@@ -12,6 +12,7 @@ dirs.workspace = true
 ldc-core = { path = "../ldc-core" }
 ldc-copilot = { path = "../ldc-copilot" }
 ldc-ingestor = { path = "../ldc-ingestor" }
+ldc-linkedin = { path = "../ldc-linkedin" }
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

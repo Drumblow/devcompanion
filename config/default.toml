@@ -20,3 +20,10 @@ enabled = false
 cli_path = "copilot"
 model = "copilot-latest"
 github_token_env = "COPILOT_GITHUB_TOKEN"
+
+[linkedin]
+enabled = false
+dry_run = false
+access_token_env = "LDC_LINKEDIN_ACCESS_TOKEN"
+author_urn_env = "LDC_LINKEDIN_AUTHOR_URN"
+api_version = "202506"

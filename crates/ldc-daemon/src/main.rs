@@ -9,6 +9,7 @@ use axum::Router;
 use config::AppConfig;
 use db::Database;
 use ldc_copilot::CopilotAdapter;
+use ldc_linkedin::LinkedInPublisher;
 use ldc_llm::{LlmProvider, OpenAiProvider, TemplateProvider};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -22,6 +23,7 @@ pub struct AppState {
     pub db: Database,
     pub llm_provider: Arc<dyn LlmProvider>,
     pub copilot: Option<CopilotAdapter>,
+    pub linkedin: LinkedInPublisher,
 }
 
 #[tokio::main]
@@ -42,6 +44,7 @@ async fn main() -> anyhow::Result<()> {
         db: database,
         llm_provider: build_provider(&config),
         copilot: build_copilot(&config),
+        linkedin: build_linkedin(&config),
     };
 
     let app = app(state);
@@ -91,6 +94,16 @@ fn build_copilot(config: &AppConfig) -> Option<CopilotAdapter> {
     })
 }
 
+fn build_linkedin(config: &AppConfig) -> LinkedInPublisher {
+    LinkedInPublisher::new(
+        config.linkedin_enabled,
+        config.linkedin_dry_run,
+        config.linkedin_access_token.clone(),
+        config.linkedin_author_urn.clone(),
+        config.linkedin_api_version.clone(),
+    )
+}
+
 async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
 }
@@ -120,6 +133,13 @@ mod tests {
             db: database,
             llm_provider: Arc::new(TemplateProvider),
             copilot: None,
+            linkedin: LinkedInPublisher::new(
+                true,
+                true,
+                None,
+                Some("urn:li:person:test".to_string()),
+                "202506".to_string(),
+            ),
         })
     }
 
@@ -211,10 +231,40 @@ mod tests {
 
         let response = app
             .clone()
+            .oneshot(json_request(
+                "POST",
+                &format!("/posts/{draft_id}/publish"),
+                json!({}),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = body_json(response).await;
+        assert_eq!(body["draft"]["status"], "published");
+        assert!(body["draft"]["linkedin_post_id"]
+            .as_str()
+            .unwrap()
+            .starts_with("dryrun-"));
+        assert_eq!(body["provider"], "linkedin_dry_run");
+
+        let response = app
+            .clone()
             .oneshot(json_request("POST", "/posts/generate", json!({})))
             .await
             .unwrap();
         let draft_id = body_json(response).await["id"].as_i64().unwrap();
+
+        let response = app
+            .clone()
+            .oneshot(json_request(
+                "POST",
+                &format!("/posts/{draft_id}/publish"),
+                json!({}),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
         let response = app
             .clone()
             .oneshot(json_request(

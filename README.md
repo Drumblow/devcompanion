@@ -35,13 +35,22 @@ MVP local-first para acompanhar atividade no VS Code, registrar memoria local e 
 - Rascunhos passam a receber `technical_analysis` na auditoria e no contexto do provider.
 - Comandos da extensao para verificar Copilot CLI e abrir a analise tecnica de hoje.
 
-## Fase 4 implementada
+## Complemento de tracking/inteligencia
 
 - A extensao captura snapshots de Git quando `git diff` ou `git status` mudam no workspace.
 - Novo evento `git_snapshot` registra arquivos alterados, linhas adicionadas/removidas, resumo de diff e resumo de status.
 - `DailySummary` inclui `git_changes`, usado pela analise tecnica e salvo na auditoria dos rascunhos.
 - O fallback local e o prompt do Copilot passam a priorizar sinais reais de Git quando disponiveis.
 - Dashboard Markdown mostra a secao `Sinais Git` para inspecionar commits e snapshots recentes.
+
+## Fase 4 arquitetural iniciada
+
+- Novo crate `ldc-linkedin` isola a integracao com LinkedIn Posts API.
+- Endpoint `GET /publisher/status` diagnostica a configuracao de publicacao.
+- Endpoint `POST /posts/{id}/publish` publica apenas rascunhos previamente aprovados.
+- Publicacao fica desabilitada por padrao e pode ser testada com `LDC_LINKEDIN_DRY_RUN=true`.
+- Rascunhos persistem `published_at`, `linkedin_post_id` e `publication_error`.
+- A extensao permite verificar o publisher e publicar um rascunho aprovado.
 
 ## Como rodar
 
@@ -71,6 +80,8 @@ Comandos uteis na Extension Development Host:
 - `LinkedIn Dev Companion: Salvar clipboard como exemplo de voz`
 - `LinkedIn Dev Companion: Verificar Copilot CLI`
 - `LinkedIn Dev Companion: Ver analise tecnica de hoje`
+- `LinkedIn Dev Companion: Verificar publisher LinkedIn`
+- `LinkedIn Dev Companion: Publicar rascunho aprovado`
 
 ## Como a extensao deve funcionar
 
@@ -91,12 +102,14 @@ Por privacidade e limitacao da API publica do VS Code, a extensao nao le automat
 - `GET /events/recent`
 - `GET /dashboard/today`
 - `GET /copilot/status`
+- `GET /publisher/status`
 - `GET /analysis/today`
 - `GET /sessions/{date}/summary`
 - `POST /posts/generate`
 - `GET /posts/pending`
 - `POST /posts/{id}/approve`
 - `POST /posts/{id}/reject`
+- `POST /posts/{id}/publish`
 - `POST /personality/examples`
 - `POST /personality/examples/ranked`
 
@@ -126,5 +139,16 @@ cargo run -p ldc-daemon
 ```
 
 Sem essas variaveis, a analise usa fallback local e nao consome requests do Copilot.
+
+Para testar o fluxo de publicacao sem chamar LinkedIn de verdade:
+
+```powershell
+$env:LDC_LINKEDIN_ENABLED = "true"
+$env:LDC_LINKEDIN_DRY_RUN = "true"
+$env:LDC_LINKEDIN_AUTHOR_URN = "urn:li:person:test"
+cargo run -p ldc-daemon
+```
+
+Para usar a LinkedIn Posts API real, configure tambem `LDC_LINKEDIN_ACCESS_TOKEN` com scope `w_member_social` e mantenha `LDC_LINKEDIN_DRY_RUN=false`.
 
 Consulte [docs/progress.md](docs/progress.md) para o handoff detalhado.

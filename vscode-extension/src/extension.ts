@@ -137,6 +137,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Falha ao abrir analise tecnica');
     }
   }));
+
+  context.subscriptions.push(vscode.commands.registerCommand('linkedinDevCompanion.checkPublisher', async () => {
+    try {
+      const publisher = await backend.publisherStatus();
+      vscode.window.showInformationMessage(`LinkedIn Publisher: ${publisher.message}`);
+    } catch (error) {
+      vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Falha ao verificar publisher LinkedIn');
+    }
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand('linkedinDevCompanion.publishApprovedDraft', async () => {
+    const idText = await vscode.window.showInputBox({ prompt: 'ID do rascunho aprovado para publicar' });
+    const draftId = Number(idText);
+    if (!Number.isInteger(draftId) || draftId <= 0) {
+      return;
+    }
+
+    await publishDraft(backend, draftId);
+  }));
 }
 
 export function deactivate(): void {}
@@ -156,8 +175,15 @@ async function showDraftReview(backend: RustBackend, draft: Draft): Promise<void
   );
 
   if (action === 'Aprovar texto aberto') {
-    await backend.approveDraft(draft.id, document.getText());
+    const approved = await backend.approveDraft(draft.id, document.getText());
     vscode.window.showInformationMessage(`Rascunho #${draft.id} aprovado localmente.`);
+    const publishAction = await vscode.window.showInformationMessage(
+      `Rascunho #${approved.id} aprovado. Publicar agora?`,
+      'Publicar'
+    );
+    if (publishAction === 'Publicar') {
+      await publishDraft(backend, approved.id);
+    }
   }
 
   if (action === 'Rejeitar') {
@@ -171,6 +197,17 @@ async function showDraftReview(backend: RustBackend, draft: Draft): Promise<void
   if (action === 'Copiar para clipboard') {
     await vscode.env.clipboard.writeText(document.getText());
     vscode.window.showInformationMessage('Rascunho copiado.');
+  }
+}
+
+async function publishDraft(backend: RustBackend, draftId: number): Promise<void> {
+  try {
+    const published = await backend.publishDraft(draftId);
+    vscode.window.showInformationMessage(
+      `Rascunho #${published.draft.id} publicado via ${published.provider}: ${published.draft.linkedin_post_id ?? 'sem id externo'}.`
+    );
+  } catch (error) {
+    vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Falha ao publicar rascunho');
   }
 }
 

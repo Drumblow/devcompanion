@@ -8,7 +8,7 @@ use axum::{
 use chrono::{NaiveDate, Utc};
 use ldc_core::{
     ApproveDraftRequest, CodingEvent, CopilotStatus, DashboardSnapshot, GenerateDraftRequest,
-    HealthResponse, RejectDraftRequest, VoiceExampleRequest,
+    HealthResponse, PublisherStatus, RejectDraftRequest, VoiceExampleRequest,
 };
 use ldc_ingestor::normalize_event;
 use ldc_llm::DraftInput;
@@ -18,6 +18,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
         .route("/copilot/status", get(copilot_status))
+        .route("/publisher/status", get(publisher_status))
         .route("/analysis/today", get(today_analysis))
         .route("/events", post(receive_event))
         .route("/events/recent", get(recent_events))
@@ -27,8 +28,30 @@ pub fn routes() -> Router<AppState> {
         .route("/posts/pending", get(pending_posts))
         .route("/posts/{id}/approve", post(approve_post))
         .route("/posts/{id}/reject", post(reject_post))
+        .route("/posts/{id}/publish", post(publish_post))
         .route("/personality/examples", post(add_voice_example))
         .route("/personality/examples/ranked", post(ranked_voice_examples))
+}
+
+async fn publisher_status(State(state): State<AppState>) -> Json<PublisherStatus> {
+    let enabled = state.linkedin.is_enabled();
+    let dry_run = state.linkedin.is_dry_run();
+    Json(PublisherStatus {
+        enabled,
+        dry_run,
+        provider: if dry_run {
+            "linkedin_dry_run".to_string()
+        } else {
+            "linkedin_posts_api".to_string()
+        },
+        api_version: state.linkedin.api_version().to_string(),
+        message: if enabled {
+            "Publisher LinkedIn habilitado. Publicacao exige rascunho aprovado.".to_string()
+        } else {
+            "Publisher LinkedIn desabilitado. Use LDC_LINKEDIN_ENABLED=true para ativar."
+                .to_string()
+        },
+    })
 }
 
 async fn copilot_status(State(state): State<AppState>) -> Result<Json<CopilotStatus>, ApiError> {
@@ -237,6 +260,46 @@ async fn reject_post(
         .map_err(ApiError::internal)?
         .ok_or_else(|| ApiError::not_found("rascunho nao encontrado"))?;
     Ok(Json(json!(draft)))
+}
+
+async fn publish_post(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let draft = state
+        .db
+        .get_draft(id)
+        .await
+        .map_err(|_| ApiError::not_found("rascunho nao encontrado"))?;
+
+    if draft.status != "approved" {
+        return Err(ApiError::bad_request(
+            "rascunho precisa estar aprovado antes da publicacao",
+        ));
+    }
+
+    let outcome = match state.linkedin.publish(&draft.content).await {
+        Ok(outcome) => outcome,
+        Err(error) => {
+            let message = error.to_string();
+            let _ = state.db.mark_publication_error(id, message.clone()).await;
+            return Err(ApiError::bad_request(message));
+        }
+    };
+
+    let published = state
+        .db
+        .mark_draft_published(id, outcome.external_id)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| {
+            ApiError::bad_request("rascunho precisa estar aprovado antes da publicacao")
+        })?;
+
+    Ok(Json(json!({
+        "draft": published,
+        "provider": outcome.provider
+    })))
 }
 
 async fn add_voice_example(

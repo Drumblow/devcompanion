@@ -96,7 +96,10 @@ impl Database {
                 created_at TEXT NOT NULL,
                 approved_at TEXT,
                 rejected_at TEXT,
-                rejection_reason TEXT
+                rejection_reason TEXT,
+                published_at TEXT,
+                linkedin_post_id TEXT,
+                publication_error TEXT
             );
             "#,
         )
@@ -108,6 +111,12 @@ impl Database {
         self.ensure_column("generated_drafts", "rejected_at", "TEXT")
             .await?;
         self.ensure_column("generated_drafts", "rejection_reason", "TEXT")
+            .await?;
+        self.ensure_column("generated_drafts", "published_at", "TEXT")
+            .await?;
+        self.ensure_column("generated_drafts", "linkedin_post_id", "TEXT")
+            .await?;
+        self.ensure_column("generated_drafts", "publication_error", "TEXT")
             .await?;
 
         Ok(())
@@ -471,6 +480,50 @@ impl Database {
 
         Ok(Some(self.get_draft(id).await?))
     }
+
+    pub async fn mark_draft_published(
+        &self,
+        id: i64,
+        linkedin_post_id: String,
+    ) -> anyhow::Result<Option<GeneratedDraft>> {
+        let published_at = Utc::now().to_rfc3339();
+        let affected = sqlx::query(
+            "UPDATE generated_drafts SET status = 'published', published_at = ?, linkedin_post_id = ?, publication_error = NULL WHERE id = ? AND status = 'approved'",
+        )
+        .bind(published_at)
+        .bind(linkedin_post_id)
+        .bind(id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+
+        if affected == 0 {
+            return Ok(None);
+        }
+
+        Ok(Some(self.get_draft(id).await?))
+    }
+
+    pub async fn mark_publication_error(
+        &self,
+        id: i64,
+        error: String,
+    ) -> anyhow::Result<Option<GeneratedDraft>> {
+        let affected = sqlx::query(
+            "UPDATE generated_drafts SET publication_error = ? WHERE id = ? AND status = 'approved'",
+        )
+        .bind(error)
+        .bind(id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+
+        if affected == 0 {
+            return Ok(None);
+        }
+
+        Ok(Some(self.get_draft(id).await?))
+    }
 }
 
 fn metadata_string(metadata: &Value, key: &str) -> Option<String> {
@@ -487,6 +540,7 @@ fn row_to_draft(row: sqlx::sqlite::SqliteRow) -> anyhow::Result<GeneratedDraft> 
     let created_at_text: String = row.try_get("created_at")?;
     let approved_at_text: Option<String> = row.try_get("approved_at")?;
     let rejected_at_text: Option<String> = row.try_get("rejected_at")?;
+    let published_at_text: Option<String> = row.try_get("published_at")?;
     let audit_text: String = row.try_get("context_audit")?;
 
     Ok(GeneratedDraft {
@@ -505,6 +559,11 @@ fn row_to_draft(row: sqlx::sqlite::SqliteRow) -> anyhow::Result<GeneratedDraft> 
             .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
             .map(|value| value.with_timezone(&Utc)),
         rejection_reason: row.try_get("rejection_reason")?,
+        published_at: published_at_text
+            .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
+            .map(|value| value.with_timezone(&Utc)),
+        linkedin_post_id: row.try_get("linkedin_post_id")?,
+        publication_error: row.try_get("publication_error")?,
     })
 }
 

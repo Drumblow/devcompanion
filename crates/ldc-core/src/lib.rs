@@ -121,6 +121,15 @@ pub struct CopilotStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublisherStatus {
+    pub enabled: bool,
+    pub dry_run: bool,
+    pub provider: String,
+    pub api_version: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerateDraftRequest {
     pub date: Option<NaiveDate>,
 }
@@ -138,6 +147,9 @@ pub struct GeneratedDraft {
     pub approved_at: Option<DateTime<Utc>>,
     pub rejected_at: Option<DateTime<Utc>>,
     pub rejection_reason: Option<String>,
+    pub published_at: Option<DateTime<Utc>>,
+    pub linkedin_post_id: Option<String>,
+    pub publication_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

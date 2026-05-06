@@ -47,6 +47,14 @@
       {
         "command": "linkedinDevCompanion.showTodayAnalysis",
         "title": "LinkedIn Dev Companion: Ver analise tecnica de hoje"
+      },
+      {
+        "command": "linkedinDevCompanion.checkPublisher",
+        "title": "LinkedIn Dev Companion: Verificar publisher LinkedIn"
+      },
+      {
+        "command": "linkedinDevCompanion.publishApprovedDraft",
+        "title": "LinkedIn Dev Companion: Publicar rascunho aprovado"
       }
     ],
     "configuration": {

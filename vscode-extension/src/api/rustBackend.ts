@@ -8,6 +8,9 @@ export interface Draft {
   style_score?: number;
   rejected_at?: string;
   rejection_reason?: string;
+  published_at?: string;
+  linkedin_post_id?: string;
+  publication_error?: string;
 }
 
 export interface DailySummary {
@@ -59,6 +62,19 @@ export interface CopilotStatus {
   cli_path: string;
   model: string;
   message: string;
+}
+
+export interface PublisherStatus {
+  enabled: boolean;
+  dry_run: boolean;
+  provider: string;
+  api_version: string;
+  message: string;
+}
+
+export interface PublishResponse {
+  draft: Draft;
+  provider: string;
 }
 
 export interface TechnicalAnalysis {
@@ -129,6 +145,14 @@ export class RustBackend {
     return response.json() as Promise<CopilotStatus>;
   }
 
+  async publisherStatus(): Promise<PublisherStatus> {
+    const response = await fetch(`${backendUrl()}/publisher/status`);
+    if (!response.ok) {
+      throw new Error(`Falha ao verificar publisher LinkedIn: ${response.status}`);
+    }
+    return response.json() as Promise<PublisherStatus>;
+  }
+
   async todayAnalysis(): Promise<TechnicalAnalysis> {
     const response = await fetch(`${backendUrl()}/analysis/today`);
     if (!response.ok) {
@@ -159,6 +183,18 @@ export class RustBackend {
       throw new Error(`Falha ao rejeitar rascunho: ${response.status}`);
     }
     return response.json() as Promise<Draft>;
+  }
+
+  async publishDraft(id: number): Promise<PublishResponse> {
+    const response = await fetch(`${backendUrl()}/posts/${id}/publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (!response.ok) {
+      throw new Error(`Falha ao publicar rascunho: ${response.status}`);
+    }
+    return response.json() as Promise<PublishResponse>;
   }
 
   async saveVoiceExample(text: string, context: string): Promise<void> {

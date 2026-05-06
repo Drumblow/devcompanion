@@ -4,7 +4,7 @@ Data: 2026-05-05
 
 ## Estado atual
 
-O LinkedIn Dev Companion esta implementado ate a fase 4. A fase 1 criou o MVP local-first, a fase 2 adicionou rastreamento real e dashboard, a fase 3 integrou analise tecnica opcional via Copilot CLI com fallback local, e a fase 4 passou a capturar sinais reais de diff/status Git do workspace para enriquecer a analise e os rascunhos.
+O LinkedIn Dev Companion esta implementado com a fundacao local-first, rastreamento real, analise tecnica opcional via Copilot CLI, sinais Git de diff/status e inicio da fase de aprovacao/publicacao. A entrega chamada anteriormente de fase 4 (`git_snapshot`) foi reclassificada como complemento da fase de tracking/inteligencia. A fase 4 arquitetural agora foi iniciada com publisher LinkedIn desacoplado, desabilitado por padrao, e com aprovacao humana obrigatoria antes de qualquer chamada externa.
 
 ## O que foi criado
 
@@ -65,7 +65,7 @@ O LinkedIn Dev Companion esta implementado ate a fase 4. A fase 1 criou o MVP lo
 - Quando Copilot esta ausente/desabilitado/falha, o daemon usa fallback local baseado em resumo diario.
 - Extensao recebeu comandos `LinkedIn Dev Companion: Verificar Copilot CLI` e `LinkedIn Dev Companion: Ver analise tecnica de hoje`.
 
-## Fase 4 implementada
+## Complemento de tracking/inteligencia: sinais Git reais
 
 - A extensao agora observa tambem o estado do worktree Git, nao apenas o ultimo commit.
 - Novo evento normalizado `git_snapshot` para registrar `git diff --shortstat`, arquivos alterados e resumo de `git status --short`.
@@ -77,7 +77,20 @@ O LinkedIn Dev Companion esta implementado ate a fase 4. A fase 1 criou o MVP lo
 - O dashboard Markdown da extensao ganhou a secao `Sinais Git`.
 - A auditoria do rascunho inclui `summary.git_changes` dentro de `context_audit`.
 
-## Validacao executada na fase 4
+## Fase 4 arquitetural iniciada: aprovacao e publicacao desacoplada
+
+- Novo crate `ldc-linkedin` para isolar a integracao com LinkedIn Posts API.
+- O publisher usa `POST https://api.linkedin.com/rest/posts`, header `Linkedin-Version` e `X-Restli-Protocol-Version: 2.0.0`.
+- Configuracoes por ambiente: `LDC_LINKEDIN_ENABLED`, `LDC_LINKEDIN_DRY_RUN`, `LDC_LINKEDIN_ACCESS_TOKEN`, `LDC_LINKEDIN_AUTHOR_URN` e `LDC_LINKEDIN_API_VERSION`.
+- O publisher fica desabilitado por padrao, evitando qualquer publicacao externa acidental.
+- `LDC_LINKEDIN_DRY_RUN=true` permite validar o fluxo sem chamar LinkedIn de verdade.
+- Novo endpoint `GET /publisher/status` para diagnostico do publisher.
+- Novo endpoint `POST /posts/{id}/publish` para publicar somente rascunhos com `status = approved`.
+- Rascunhos ganharam auditoria de publicacao: `published_at`, `linkedin_post_id` e `publication_error`.
+- A extensao recebeu comandos `LinkedIn Dev Companion: Verificar publisher LinkedIn` e `LinkedIn Dev Companion: Publicar rascunho aprovado`.
+- Apos aprovar um rascunho pela extensao, o usuario pode escolher publicar imediatamente.
+
+## Validacao executada no complemento de sinais Git
 
 - `cargo fmt --all`: ok.
 - `cargo check`: ok.
@@ -88,6 +101,19 @@ O LinkedIn Dev Companion esta implementado ate a fase 4. A fase 1 criou o MVP lo
 - `GET /sessions/2026-05-06/summary`: retornou `git_changes` com `diff_summary`, `status_summary`, arquivos e linhas adicionadas/removidas.
 - `GET /analysis/today`: retornou insight citando `Ultimo sinal Git`.
 - `POST /posts/generate`: salvou `summary.git_changes` dentro de `context_audit`.
+
+## Validacao executada na fase 4 arquitetural
+
+- `cargo fmt --all`: ok.
+- `cargo check`: ok.
+- `cargo test`: ok.
+- `npm run compile` em `vscode-extension`: ok.
+- Teste HTTP atualizado para aprovar rascunho e publicar em modo `linkedin_dry_run`.
+- Teste HTTP confirma que rascunho pendente nao pode ser publicado.
+- Daemon subiu com `LDC_LINKEDIN_ENABLED=true`, `LDC_LINKEDIN_DRY_RUN=true` e `LDC_LINKEDIN_AUTHOR_URN=urn:li:person:test`.
+- `GET /publisher/status`: retornou `enabled = true`, `dry_run = true` e provider `linkedin_dry_run`.
+- `POST /posts/{id}/publish` em rascunho pendente: bloqueado com HTTP 400.
+- `POST /posts/{id}/approve` seguido de `POST /posts/{id}/publish`: retornou `status = published` e `linkedin_post_id = dryrun-*`.
 
 ## Validacao executada na fase 3
 
@@ -118,6 +144,7 @@ O LinkedIn Dev Companion esta implementado ate a fase 4. A fase 1 criou o MVP lo
 5. O usuario aciona a geracao via extensao ou `POST /posts/generate`.
 6. O rascunho fica com status `pending_approval`.
 7. O usuario aprova manualmente por `POST /posts/{id}/approve`.
+8. Se o publisher estiver habilitado, um rascunho aprovado pode ser publicado por `POST /posts/{id}/publish`.
 
 ## Endpoints implementados
 
@@ -126,12 +153,14 @@ O LinkedIn Dev Companion esta implementado ate a fase 4. A fase 1 criou o MVP lo
 - `GET /events/recent`: lista eventos recentes ja normalizados e persistidos.
 - `GET /dashboard/today`: retorna resumo operacional local para validacao diaria.
 - `GET /copilot/status`: diagnostica a integracao opcional com Copilot CLI.
+- `GET /publisher/status`: diagnostica a integracao opcional com LinkedIn Posts API.
 - `GET /analysis/today`: retorna analise tecnica diaria com Copilot ou fallback local.
 - `GET /sessions/{date}/summary`: retorna agregacao diaria.
 - `POST /posts/generate`: cria um rascunho local para a data informada ou para hoje.
 - `GET /posts/pending`: lista rascunhos aguardando aprovacao.
 - `POST /posts/{id}/approve`: aprova um rascunho localmente.
 - `POST /posts/{id}/reject`: rejeita um rascunho localmente com motivo.
+- `POST /posts/{id}/publish`: publica somente rascunhos aprovados, se o publisher estiver habilitado.
 - `POST /personality/examples`: salva exemplos de voz aprovados explicitamente.
 - `POST /personality/examples/ranked`: lista exemplos de voz ranqueados por similaridade textual local.
 
@@ -139,8 +168,9 @@ O LinkedIn Dev Companion esta implementado ate a fase 4. A fase 1 criou o MVP lo
 
 - O modo padrao nao chama OpenAI, Copilot CLI ou LinkedIn. Isso foi proposital para validar tudo sem tokens, custos ou dependencias externas.
 - O Copilot CLI e opcional e so roda com `LDC_COPILOT_ENABLED=true`.
+- O LinkedIn Publisher e opcional e so roda com `LDC_LINKEDIN_ENABLED=true`.
 - O gerador padrao continua sendo um template local, mas ja existe provider OpenAI configuravel por ambiente.
-- A publicacao no LinkedIn permanece desabilitada. O status aprovado e apenas local.
+- A publicacao no LinkedIn permanece desabilitada por padrao. O status aprovado e local ate o usuario habilitar explicitamente o publisher.
 - A extensao ignora falhas silenciosamente durante tracking para nao atrapalhar o usuario se o daemon estiver offline.
 - A fase 4 captura estatisticas e nomes de arquivos do Git, mas nao envia patch completo nem conteudo de arquivo.
 
@@ -162,6 +192,7 @@ Invoke-RestMethod http://127.0.0.1:8787/posts/generate -Method Post -ContentType
 Invoke-RestMethod http://127.0.0.1:8787/posts/pending
 Invoke-RestMethod http://127.0.0.1:8787/dashboard/today
 Invoke-RestMethod http://127.0.0.1:8787/copilot/status
+Invoke-RestMethod http://127.0.0.1:8787/publisher/status
 Invoke-RestMethod http://127.0.0.1:8787/analysis/today
 Invoke-RestMethod http://127.0.0.1:8787/personality/examples -Method Post -ContentType 'application/json' -Body '{"text":"Hoje eu prefiro explicar o trade-off tecnico sem vender solucao magica.","context":"manual"}'
 Invoke-RestMethod http://127.0.0.1:8787/personality/examples/ranked -Method Post -ContentType 'application/json' -Body '{"query":"trade-off tecnico"}'
@@ -215,6 +246,7 @@ Para alimentar personalidade com prompts do chat, copie o texto do prompt e use 
 
 - Validar manualmente a extensao via Extension Development Host com um workspace Git real e confirmar a secao `Sinais Git` no dashboard.
 - Criar UI dedicada de revisao em Webview, em vez de usar documento Markdown temporario.
+- Implementar fila/agendador local para gerar rascunhos em horario configurado.
 - Adicionar keyring do sistema operacional para tokens externos.
 - Adicionar testes E2E da extensao no Extension Development Host.
 - Evoluir similaridade local para embeddings reais quando OpenAI estiver configurado.
