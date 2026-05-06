@@ -1,4 +1,4 @@
-use crate::{error::ApiError, AppState};
+use crate::{analysis::analyze_day, error::ApiError, AppState};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -7,8 +7,8 @@ use axum::{
 };
 use chrono::{NaiveDate, Utc};
 use ldc_core::{
-    ApproveDraftRequest, CodingEvent, DashboardSnapshot, GenerateDraftRequest, HealthResponse,
-    RejectDraftRequest, VoiceExampleRequest,
+    ApproveDraftRequest, CodingEvent, CopilotStatus, DashboardSnapshot, GenerateDraftRequest,
+    HealthResponse, RejectDraftRequest, VoiceExampleRequest,
 };
 use ldc_ingestor::normalize_event;
 use ldc_llm::DraftInput;
@@ -17,6 +17,8 @@ use serde_json::json;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
+        .route("/copilot/status", get(copilot_status))
+        .route("/analysis/today", get(today_analysis))
         .route("/events", post(receive_event))
         .route("/events/recent", get(recent_events))
         .route("/dashboard/today", get(today_dashboard))
@@ -27,6 +29,44 @@ pub fn routes() -> Router<AppState> {
         .route("/posts/{id}/reject", post(reject_post))
         .route("/personality/examples", post(add_voice_example))
         .route("/personality/examples/ranked", post(ranked_voice_examples))
+}
+
+async fn copilot_status(State(state): State<AppState>) -> Result<Json<CopilotStatus>, ApiError> {
+    let Some(copilot) = &state.copilot else {
+        return Ok(Json(CopilotStatus {
+            enabled: false,
+            available: false,
+            cli_path: "copilot".to_string(),
+            model: "copilot-latest".to_string(),
+            message: "Copilot CLI desabilitado. Use LDC_COPILOT_ENABLED=true para ativar."
+                .to_string(),
+        }));
+    };
+
+    let available = copilot.is_available().await;
+    Ok(Json(CopilotStatus {
+        enabled: true,
+        available,
+        cli_path: copilot.cli_path().to_string(),
+        model: copilot.model().to_string(),
+        message: if available {
+            "Copilot CLI disponivel para analise tecnica.".to_string()
+        } else {
+            "Copilot CLI habilitado, mas nao encontrado ou nao respondeu ao --help.".to_string()
+        },
+    }))
+}
+
+async fn today_analysis(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let summary = state
+        .db
+        .daily_summary(Utc::now().date_naive())
+        .await
+        .map_err(ApiError::internal)?;
+    let analysis = analyze_day(&summary, state.copilot.as_ref()).await;
+    Ok(Json(json!(analysis)))
 }
 
 async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, ApiError> {
@@ -132,11 +172,13 @@ async fn generate_post(
         .recent_voice_examples(3)
         .await
         .map_err(ApiError::internal)?;
+    let technical_analysis = analyze_day(&summary, state.copilot.as_ref()).await;
     let output = state
         .llm_provider
         .generate_draft(DraftInput {
             summary,
             voice_examples: examples,
+            technical_analysis: Some(technical_analysis),
         })
         .await
         .map_err(ApiError::internal)?;

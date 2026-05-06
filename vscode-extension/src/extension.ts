@@ -115,6 +115,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     await showDaemonOfflineMessage();
   }));
+
+  context.subscriptions.push(vscode.commands.registerCommand('linkedinDevCompanion.checkCopilot', async () => {
+    try {
+      const status = await backend.copilotStatus();
+      vscode.window.showInformationMessage(`Copilot CLI: ${status.message}`);
+    } catch (error) {
+      vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Falha ao verificar Copilot CLI');
+    }
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand('linkedinDevCompanion.showTodayAnalysis', async () => {
+    try {
+      const analysis = await backend.todayAnalysis();
+      const document = await vscode.workspace.openTextDocument({
+        language: 'markdown',
+        content: renderTechnicalAnalysis(analysis)
+      });
+      await vscode.window.showTextDocument(document, { preview: false });
+    } catch (error) {
+      vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Falha ao abrir analise tecnica');
+    }
+  }));
 }
 
 export function deactivate(): void {}
@@ -175,6 +197,29 @@ function renderDashboard(dashboard: Awaited<ReturnType<RustBackend['dashboard']>
     '## Eventos recentes',
     '',
     recentEvents
+  ].join('\n');
+}
+
+function renderTechnicalAnalysis(analysis: Awaited<ReturnType<RustBackend['todayAnalysis']>>): string {
+  return [
+    '# Analise tecnica de hoje',
+    '',
+    `Origem: ${analysis.source}`,
+    `Status: ${analysis.status}`,
+    `Complexidade: ${analysis.complexity ?? 'n/a'}`,
+    '',
+    '## Insights',
+    '',
+    ...(analysis.insights.length ? analysis.insights.map(item => `- ${item}`) : ['- nenhum insight registrado']),
+    '',
+    '## Stack',
+    '',
+    ...(analysis.tech_stack.length ? analysis.tech_stack.map(item => `- ${item}`) : ['- nenhuma stack registrada']),
+    '',
+    '## Aprendizados',
+    '',
+    ...(analysis.learnings.length ? analysis.learnings.map(item => `- ${item}`) : ['- nenhum aprendizado registrado']),
+    analysis.error ? `\nErro/fallback: ${analysis.error}` : ''
   ].join('\n');
 }
 

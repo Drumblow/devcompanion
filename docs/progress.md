@@ -54,6 +54,37 @@ A fase 1 do LinkedIn Dev Companion foi implementada como MVP local-first e publi
 - Adicionado comando `LinkedIn Dev Companion: Salvar clipboard como exemplo de voz` para capturar prompts/chats copiados conscientemente pelo usuario.
 - Decisao de produto registrada: a extensao nao ingere historico do Copilot Chat automaticamente; prompts entram por acao explicita do usuario.
 
+## Fase 3 implementada
+
+- `ldc-copilot` foi integrado ao daemon como analise tecnica diaria opcional.
+- Nova configuracao por ambiente: `LDC_COPILOT_ENABLED`, `LDC_COPILOT_CLI_PATH`, `LDC_COPILOT_MODEL` e `LDC_COPILOT_GITHUB_TOKEN_ENV`.
+- Copilot fica desabilitado por padrao para evitar consumo inesperado de premium requests.
+- `GET /copilot/status` informa se Copilot esta habilitado e disponivel.
+- `GET /analysis/today` retorna a analise tecnica do dia.
+- `POST /posts/generate` injeta `technical_analysis` no provider e na auditoria do rascunho.
+- Quando Copilot esta ausente/desabilitado/falha, o daemon usa fallback local baseado em resumo diario.
+- Extensao recebeu comandos `LinkedIn Dev Companion: Verificar Copilot CLI` e `LinkedIn Dev Companion: Ver analise tecnica de hoje`.
+
+## Validacao executada na fase 3
+
+- `cargo fmt --all`: ok.
+- `cargo check`: ok.
+- `cargo test`: ok.
+- `npm run compile` em `vscode-extension`: ok.
+- `get_errors` do VS Code: sem erros.
+- O daemon subiu apos encerrar um processo antigo que bloqueava `target/debug/ldc-daemon.exe` no Windows.
+- `GET /copilot/status`: retornou Copilot desabilitado por padrao, sem consumir requests.
+- `GET /analysis/today`: retornou analise local com `source = local_fallback` e `status = ok`.
+- `POST /posts/generate`: criou rascunho `local-template-v2` com `technical_analysis` salvo em `context_audit`.
+- Observacao: a validacao mostrou eventos do workspace `igreja`, confirmando que a extensao acompanha o workspace aberto na Extension Development Host.
+
+## Memoria de voz por acao explicita
+
+- A extensao nao le historico do Copilot Chat automaticamente.
+- Para salvar um prompt/chat como voz, o usuario copia o texto e executa `LinkedIn Dev Companion: Salvar clipboard como exemplo de voz`.
+- Para salvar texto de um arquivo, o usuario seleciona o trecho e executa `LinkedIn Dev Companion: Salvar selecao como exemplo de voz`.
+- Esses textos sao persistidos localmente em `voice_examples` e usados pelo ranking local e pelo provider de rascunhos.
+
 ## Fluxos disponiveis
 
 1. A extensao envia eventos para `POST /events`.
@@ -68,6 +99,8 @@ A fase 1 do LinkedIn Dev Companion foi implementada como MVP local-first e publi
 - `POST /events`: ingere eventos do VS Code.
 - `GET /events/recent`: lista eventos recentes ja normalizados e persistidos.
 - `GET /dashboard/today`: retorna resumo operacional local para validacao diaria.
+- `GET /copilot/status`: diagnostica a integracao opcional com Copilot CLI.
+- `GET /analysis/today`: retorna analise tecnica diaria com Copilot ou fallback local.
 - `GET /sessions/{date}/summary`: retorna agregacao diaria.
 - `POST /posts/generate`: cria um rascunho local para a data informada ou para hoje.
 - `GET /posts/pending`: lista rascunhos aguardando aprovacao.
@@ -99,6 +132,8 @@ Invoke-RestMethod http://127.0.0.1:8787/events -Method Post -ContentType 'applic
 Invoke-RestMethod http://127.0.0.1:8787/posts/generate -Method Post -ContentType 'application/json' -Body '{}'
 Invoke-RestMethod http://127.0.0.1:8787/posts/pending
 Invoke-RestMethod http://127.0.0.1:8787/dashboard/today
+Invoke-RestMethod http://127.0.0.1:8787/copilot/status
+Invoke-RestMethod http://127.0.0.1:8787/analysis/today
 Invoke-RestMethod http://127.0.0.1:8787/personality/examples -Method Post -ContentType 'application/json' -Body '{"text":"Hoje eu prefiro explicar o trade-off tecnico sem vender solucao magica.","context":"manual"}'
 Invoke-RestMethod http://127.0.0.1:8787/personality/examples/ranked -Method Post -ContentType 'application/json' -Body '{"query":"trade-off tecnico"}'
 ```
@@ -150,7 +185,7 @@ Para alimentar personalidade com prompts do chat, copie o texto do prompt e use 
 ## Proximos passos recomendados
 
 - Validar manualmente a extensao via Extension Development Host antes de entrar na fase 3.
-- Integrar `ldc-copilot` ao pipeline diario para enriquecer o resumo tecnico com commits/diffs.
+- Enriquecer a analise Copilot com diff real resumido por projeto, nao apenas o resumo diario agregado.
 - Criar UI dedicada de revisao em Webview, em vez de usar documento Markdown temporario.
 - Adicionar keyring do sistema operacional para tokens externos.
 - Adicionar testes E2E da extensao no Extension Development Host.

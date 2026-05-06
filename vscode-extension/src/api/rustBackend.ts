@@ -39,6 +39,25 @@ export interface DashboardSnapshot {
   pending_drafts: Draft[];
 }
 
+export interface CopilotStatus {
+  enabled: boolean;
+  available: boolean;
+  cli_path: string;
+  model: string;
+  message: string;
+}
+
+export interface TechnicalAnalysis {
+  source: string;
+  status: string;
+  insights: string[];
+  tech_stack: string[];
+  complexity?: number;
+  learnings: string[];
+  raw?: string;
+  error?: string;
+}
+
 export class RustBackend {
   async health(): Promise<boolean> {
     try {
@@ -86,6 +105,22 @@ export class RustBackend {
       throw new Error(`Falha ao buscar dashboard: ${response.status}`);
     }
     return response.json() as Promise<DashboardSnapshot>;
+  }
+
+  async copilotStatus(): Promise<CopilotStatus> {
+    const response = await fetch(`${backendUrl()}/copilot/status`);
+    if (!response.ok) {
+      throw new Error(`Falha ao verificar Copilot CLI: ${response.status}`);
+    }
+    return response.json() as Promise<CopilotStatus>;
+  }
+
+  async todayAnalysis(): Promise<TechnicalAnalysis> {
+    const response = await fetch(`${backendUrl()}/analysis/today`);
+    if (!response.ok) {
+      throw new Error(`Falha ao buscar analise tecnica: ${response.status}`);
+    }
+    return response.json() as Promise<TechnicalAnalysis>;
   }
 
   async approveDraft(id: number, approvedContent?: string): Promise<Draft> {

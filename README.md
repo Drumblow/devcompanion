@@ -26,6 +26,15 @@ MVP local-first para acompanhar atividade no VS Code, registrar memoria local e 
 - Adaptador Copilot CLI isolado em crate proprio.
 - Score simples de aderencia ao perfil de voz e exemplos ranqueados por similaridade local.
 
+## Fase 3 implementada
+
+- Analise tecnica diaria via `ldc-copilot`, opcional e desabilitada por padrao.
+- Fallback local quando Copilot CLI esta desabilitado, ausente ou falha.
+- Endpoint `GET /copilot/status` para diagnostico.
+- Endpoint `GET /analysis/today` para ver a analise tecnica usada pelo rascunho.
+- Rascunhos passam a receber `technical_analysis` na auditoria e no contexto do provider.
+- Comandos da extensao para verificar Copilot CLI e abrir a analise tecnica de hoje.
+
 ## Como rodar
 
 ```powershell
@@ -52,6 +61,8 @@ Comandos uteis na Extension Development Host:
 - `LinkedIn Dev Companion: Abrir dashboard local`
 - `LinkedIn Dev Companion: Salvar selecao como exemplo de voz`
 - `LinkedIn Dev Companion: Salvar clipboard como exemplo de voz`
+- `LinkedIn Dev Companion: Verificar Copilot CLI`
+- `LinkedIn Dev Companion: Ver analise tecnica de hoje`
 
 ## Como a extensao deve funcionar
 
@@ -92,5 +103,16 @@ cargo run -p ldc-daemon
 ```
 
 O adaptador Copilot CLI ja existe como crate isolado (`ldc-copilot`) para a proxima etapa de analise tecnica via subprocess.
+
+Para testar a fase 3 com Copilot CLI, deixe o CLI instalado e habilite explicitamente:
+
+```powershell
+$env:LDC_COPILOT_ENABLED = "true"
+$env:LDC_COPILOT_CLI_PATH = "copilot"
+$env:LDC_COPILOT_MODEL = "copilot-latest"
+cargo run -p ldc-daemon
+```
+
+Sem essas variaveis, a fase 3 usa analise local e nao consome requests do Copilot.
 
 Consulte [docs/progress.md](docs/progress.md) para o handoff detalhado.

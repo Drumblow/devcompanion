@@ -883,6 +883,7 @@ dependencies = [
  "axum",
  "chrono",
  "dirs",
+ "ldc-copilot",
  "ldc-core",
  "ldc-ingestor",
  "ldc-llm",

@@ -1,3 +1,4 @@
+mod analysis;
 mod api;
 mod config;
 mod db;
@@ -7,6 +8,7 @@ use anyhow::Context;
 use axum::Router;
 use config::AppConfig;
 use db::Database;
+use ldc_copilot::CopilotAdapter;
 use ldc_llm::{LlmProvider, OpenAiProvider, TemplateProvider};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -19,6 +21,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 pub struct AppState {
     pub db: Database,
     pub llm_provider: Arc<dyn LlmProvider>,
+    pub copilot: Option<CopilotAdapter>,
 }
 
 #[tokio::main]
@@ -38,6 +41,7 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         db: database,
         llm_provider: build_provider(&config),
+        copilot: build_copilot(&config),
     };
 
     let app = app(state);
@@ -77,6 +81,16 @@ fn build_provider(config: &AppConfig) -> Arc<dyn LlmProvider> {
     Arc::new(TemplateProvider)
 }
 
+fn build_copilot(config: &AppConfig) -> Option<CopilotAdapter> {
+    config.copilot_enabled.then(|| {
+        CopilotAdapter::new(
+            config.copilot_cli_path.clone(),
+            config.copilot_model.clone(),
+            config.copilot_github_token_env.clone(),
+        )
+    })
+}
+
 async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
 }
@@ -105,6 +119,7 @@ mod tests {
         app(AppState {
             db: database,
             llm_provider: Arc::new(TemplateProvider),
+            copilot: None,
         })
     }
 

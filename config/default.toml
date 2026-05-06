@@ -16,6 +16,7 @@ openai_api_key_env = "OPENAI_API_KEY"
 reasoning_effort = "medium"
 
 [copilot]
+enabled = false
 cli_path = "copilot"
 model = "copilot-latest"
 github_token_env = "COPILOT_GITHUB_TOKEN"

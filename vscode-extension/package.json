@@ -39,6 +39,14 @@
       {
         "command": "linkedinDevCompanion.checkDaemon",
         "title": "LinkedIn Dev Companion: Verificar daemon local"
+      },
+      {
+        "command": "linkedinDevCompanion.checkCopilot",
+        "title": "LinkedIn Dev Companion: Verificar Copilot CLI"
+      },
+      {
+        "command": "linkedinDevCompanion.showTodayAnalysis",
+        "title": "LinkedIn Dev Companion: Ver analise tecnica de hoje"
       }
     ],
     "configuration": {

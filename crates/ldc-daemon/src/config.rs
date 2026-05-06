@@ -9,6 +9,10 @@ pub struct AppConfig {
     pub provider: String,
     pub openai_api_key: Option<String>,
     pub reasoning_effort: String,
+    pub copilot_enabled: bool,
+    pub copilot_cli_path: String,
+    pub copilot_model: String,
+    pub copilot_github_token_env: Option<String>,
 }
 
 impl AppConfig {
@@ -29,6 +33,23 @@ impl AppConfig {
             .filter(|value| !value.is_empty());
         let reasoning_effort =
             env::var("LDC_REASONING_EFFORT").unwrap_or_else(|_| "medium".to_string());
+        let copilot_enabled = env::var("LDC_COPILOT_ENABLED")
+            .ok()
+            .map(|value| {
+                matches!(
+                    value.to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                )
+            })
+            .unwrap_or(false);
+        let copilot_cli_path =
+            env::var("LDC_COPILOT_CLI_PATH").unwrap_or_else(|_| "copilot".to_string());
+        let copilot_model =
+            env::var("LDC_COPILOT_MODEL").unwrap_or_else(|_| "copilot-latest".to_string());
+        let copilot_github_token_env = env::var("LDC_COPILOT_GITHUB_TOKEN_ENV")
+            .ok()
+            .filter(|value| !value.is_empty())
+            .or_else(|| Some("COPILOT_GITHUB_TOKEN".to_string()));
 
         if let Some(parent) = database_path.parent() {
             fs::create_dir_all(parent)
@@ -43,6 +64,10 @@ impl AppConfig {
             provider,
             openai_api_key,
             reasoning_effort,
+            copilot_enabled,
+            copilot_cli_path,
+            copilot_model,
+            copilot_github_token_env,
         })
     }
 }

@@ -84,6 +84,27 @@ pub struct DashboardSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TechnicalAnalysis {
+    pub source: String,
+    pub status: String,
+    pub insights: Vec<String>,
+    pub tech_stack: Vec<String>,
+    pub complexity: Option<i64>,
+    pub learnings: Vec<String>,
+    pub raw: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CopilotStatus {
+    pub enabled: bool,
+    pub available: bool,
+    pub cli_path: String,
+    pub model: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerateDraftRequest {
     pub date: Option<NaiveDate>,
 }

@@ -1,11 +1,12 @@
 use async_trait::async_trait;
-use ldc_core::DailySummary;
+use ldc_core::{DailySummary, TechnicalAnalysis};
 use serde_json::{json, Value};
 
 #[derive(Debug, Clone)]
 pub struct DraftInput {
     pub summary: DailySummary,
     pub voice_examples: Vec<String>,
+    pub technical_analysis: Option<TechnicalAnalysis>,
 }
 
 #[derive(Debug, Clone)]
@@ -61,9 +62,15 @@ impl LlmProvider for TemplateProvider {
         } else {
             "Usei exemplos de voz aprovados como referencia de tom, mantendo o conteudo tecnico preso ao contexto do dia.".to_string()
         };
+        let analysis_line = input
+            .technical_analysis
+            .as_ref()
+            .and_then(|analysis| analysis.insights.first())
+            .map(|insight| format!("\n\nAnalise tecnica do dia: {insight}"))
+            .unwrap_or_default();
 
         let content = format!(
-            "Hoje avancei em {project} e o sinal mais interessante foi o conjunto de decisoes tecnicas ao redor de {language_list}.\n\nForam {event_count} eventos registrados, {lines_added} linhas adicionadas e {lines_removed} removidas. O recorte passou por: {file_line}.\n\nO aprendizado do dia: transformar trabalho real em conteudo fica mais facil quando o sistema registra contexto suficiente para lembrar o que mudou, mas ainda deixa a decisao final na mao de quem escreveu o codigo.\n\n{voice_line}\n\nRascunho pendente de revisao manual antes de qualquer publicacao.",
+            "Hoje avancei em {project} e o sinal mais interessante foi o conjunto de decisoes tecnicas ao redor de {language_list}.\n\nForam {event_count} eventos registrados, {lines_added} linhas adicionadas e {lines_removed} removidas. O recorte passou por: {file_line}.{analysis_line}\n\nO aprendizado do dia: transformar trabalho real em conteudo fica mais facil quando o sistema registra contexto suficiente para lembrar o que mudou, mas ainda deixa a decisao final na mao de quem escreveu o codigo.\n\n{voice_line}\n\nRascunho pendente de revisao manual antes de qualquer publicacao.",
             event_count = input.summary.event_count,
             lines_added = input.summary.lines_added,
             lines_removed = input.summary.lines_removed,
@@ -77,6 +84,7 @@ impl LlmProvider for TemplateProvider {
             audit: json!({
                 "provider": "template",
                 "summary": input.summary,
+                "technical_analysis": input.technical_analysis,
                 "voice_examples_used": input.voice_examples.len(),
                 "human_approval_required": true,
                 "publication": "disabled"
@@ -110,7 +118,8 @@ impl LlmProvider for OpenAiProvider {
             serde_json::to_string(&input.summary)?
         );
         let instructions = format!(
-            "Use somente o contexto fornecido. Aprovacao humana e obrigatoria. Exemplos de voz aprovados: {}",
+            "Use somente o contexto fornecido. Aprovacao humana e obrigatoria. Analise tecnica opcional: {}\n\nExemplos de voz aprovados: {}",
+            serde_json::to_string(&input.technical_analysis)?,
             input.voice_examples.join("\n---\n")
         );
         let body = json!({
@@ -148,6 +157,7 @@ impl LlmProvider for OpenAiProvider {
                 "model": self.model,
                 "reasoning_effort": self.reasoning_effort,
                 "summary": input.summary,
+                "technical_analysis": input.technical_analysis,
                 "voice_examples_used": input.voice_examples.len(),
                 "human_approval_required": true,
                 "publication": "disabled"
