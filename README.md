@@ -35,6 +35,14 @@ MVP local-first para acompanhar atividade no VS Code, registrar memoria local e 
 - Rascunhos passam a receber `technical_analysis` na auditoria e no contexto do provider.
 - Comandos da extensao para verificar Copilot CLI e abrir a analise tecnica de hoje.
 
+## Fase 4 implementada
+
+- A extensao captura snapshots de Git quando `git diff` ou `git status` mudam no workspace.
+- Novo evento `git_snapshot` registra arquivos alterados, linhas adicionadas/removidas, resumo de diff e resumo de status.
+- `DailySummary` inclui `git_changes`, usado pela analise tecnica e salvo na auditoria dos rascunhos.
+- O fallback local e o prompt do Copilot passam a priorizar sinais reais de Git quando disponiveis.
+- Dashboard Markdown mostra a secao `Sinais Git` para inspecionar commits e snapshots recentes.
+
 ## Como rodar
 
 ```powershell
@@ -72,6 +80,8 @@ No uso real, a extensao deve ser empacotada e instalada uma vez. Depois disso, v
 
 O daemon Rust e quem guarda a memoria local. A extensao captura sinais do projeto aberto, como arquivos editados, linguagens, branch/remoto Git e commits observados. Os exemplos de voz sao salvos explicitamente pelo usuario, por selecao, input manual ou clipboard.
 
+Na fase 4, o `GitWatcher` tambem observa o worktree e envia `git_snapshot` quando o resumo de `git diff` ou `git status` muda. O evento contem estatisticas e nomes de arquivos normalizados, mas nao envia patch completo nem conteudo de arquivo.
+
 Por privacidade e limitacao da API publica do VS Code, a extensao nao le automaticamente o historico do Copilot Chat. Para usar seus prompts como personalidade, copie o texto do chat e rode `LinkedIn Dev Companion: Salvar clipboard como exemplo de voz`, ou selecione um texto em um arquivo e rode `LinkedIn Dev Companion: Salvar selecao como exemplo de voz`.
 
 ## Endpoints principais
@@ -80,6 +90,8 @@ Por privacidade e limitacao da API publica do VS Code, a extensao nao le automat
 - `POST /events`
 - `GET /events/recent`
 - `GET /dashboard/today`
+- `GET /copilot/status`
+- `GET /analysis/today`
 - `GET /sessions/{date}/summary`
 - `POST /posts/generate`
 - `GET /posts/pending`
@@ -102,7 +114,7 @@ $env:OPENAI_API_KEY = "sk-..."
 cargo run -p ldc-daemon
 ```
 
-O adaptador Copilot CLI ja existe como crate isolado (`ldc-copilot`) para a proxima etapa de analise tecnica via subprocess.
+O adaptador Copilot CLI existe como crate isolado (`ldc-copilot`) e e usado pela analise tecnica quando habilitado explicitamente.
 
 Para testar a fase 3 com Copilot CLI, deixe o CLI instalado e habilite explicitamente:
 
@@ -113,6 +125,6 @@ $env:LDC_COPILOT_MODEL = "copilot-latest"
 cargo run -p ldc-daemon
 ```
 
-Sem essas variaveis, a fase 3 usa analise local e nao consome requests do Copilot.
+Sem essas variaveis, a analise usa fallback local e nao consome requests do Copilot.
 
 Consulte [docs/progress.md](docs/progress.md) para o handoff detalhado.

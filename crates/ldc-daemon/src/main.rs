@@ -147,6 +147,39 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::CREATED);
 
+        let git_snapshot = json!({
+            "session_id": "integration",
+            "event_type": "git_snapshot",
+            "project": { "name": "demo", "path": "demo", "git_branch": "main" },
+            "activity": {
+                "files_modified": ["src/main.rs"],
+                "lines_added": 12,
+                "lines_removed": 3
+            },
+            "metadata": {
+                "diff_summary": "1 file changed, 12 insertions(+), 3 deletions(-)",
+                "status_summary": "staged: 0, unstaged: 1, untracked: 0"
+            }
+        });
+        let response = app
+            .clone()
+            .oneshot(json_request("POST", "/events", git_snapshot))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+
+        let response = app
+            .clone()
+            .oneshot(json_request("GET", "/analysis/today", json!({})))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = body_json(response).await;
+        assert!(body["insights"][0]
+            .as_str()
+            .unwrap()
+            .contains("Ultimo sinal Git"));
+
         let response = app
             .clone()
             .oneshot(json_request("POST", "/posts/generate", json!({})))
@@ -157,6 +190,10 @@ mod tests {
         let draft_id = body["id"].as_i64().unwrap();
         assert_eq!(body["status"], "pending_approval");
         assert!(body["style_score"].is_number());
+        assert_eq!(
+            body["context_audit"]["summary"]["git_changes"][0]["event_type"],
+            "git_snapshot"
+        );
 
         let response = app
             .clone()

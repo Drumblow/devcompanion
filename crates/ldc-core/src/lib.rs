@@ -59,10 +59,26 @@ pub struct DailySummary {
     pub lines_added: i64,
     pub lines_removed: i64,
     pub git_commits: i64,
+    #[serde(default)]
+    pub git_changes: Vec<GitChangeSummary>,
     pub projects: Vec<String>,
     pub languages: BTreeMap<String, i64>,
     pub files_modified: Vec<String>,
     pub voice_examples: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitChangeSummary {
+    pub event_type: String,
+    pub project_name: Option<String>,
+    pub git_branch: Option<String>,
+    pub files_modified: Vec<String>,
+    pub lines_added: i64,
+    pub lines_removed: i64,
+    pub commit_hash: Option<String>,
+    pub subject: Option<String>,
+    pub diff_summary: Option<String>,
+    pub status_summary: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

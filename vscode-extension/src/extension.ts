@@ -180,6 +180,13 @@ function renderDashboard(dashboard: Awaited<ReturnType<RustBackend['dashboard']>
   const recentEvents = dashboard.recent_events
     .map(event => `- ${event.timestamp} | ${event.event_type} | ${(event.files_modified ?? []).join(', ') || 'sem arquivo'}`)
     .join('\n') || '- nenhum evento recente';
+  const gitChanges = summary.git_changes
+    .map(change => {
+      const headline = change.subject ?? change.diff_summary ?? change.status_summary ?? change.event_type;
+      const files = (change.files_modified ?? []).slice(0, 5).join(', ') || 'sem arquivo';
+      return `- ${change.event_type} | ${headline} | +${change.lines_added} / -${change.lines_removed} | ${files}`;
+    })
+    .join('\n') || '- nenhum sinal Git capturado';
 
   return [
     '# LinkedIn Dev Companion',
@@ -193,6 +200,10 @@ function renderDashboard(dashboard: Awaited<ReturnType<RustBackend['dashboard']>
     `Linguagens: ${languages}`,
     `Rascunhos pendentes: ${dashboard.pending_drafts.length}`,
     `Score de estilo dos pendentes: ${dashboard.pending_drafts.map(draft => draft.style_score ?? 0).join(', ') || 'nenhum'}`,
+    '',
+    '## Sinais Git',
+    '',
+    gitChanges,
     '',
     '## Eventos recentes',
     '',

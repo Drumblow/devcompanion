@@ -17,10 +17,24 @@ export interface DailySummary {
   lines_added: number;
   lines_removed: number;
   git_commits: number;
+  git_changes: GitChangeSummary[];
   projects: string[];
   languages: Record<string, number>;
   files_modified: string[];
   voice_examples: number;
+}
+
+export interface GitChangeSummary {
+  event_type: string;
+  project_name?: string;
+  git_branch?: string;
+  files_modified: string[];
+  lines_added: number;
+  lines_removed: number;
+  commit_hash?: string;
+  subject?: string;
+  diff_summary?: string;
+  status_summary?: string;
 }
 
 export interface RecentEvent {

@@ -4,7 +4,7 @@ Data: 2026-05-05
 
 ## Estado atual
 
-A fase 1 do LinkedIn Dev Companion foi implementada como MVP local-first e publicada no GitHub. A fase 2 tambem foi implementada, adicionando rastreamento Git real, ingestor dedicado, agregacao diaria persistida e dashboard local.
+O LinkedIn Dev Companion esta implementado ate a fase 4. A fase 1 criou o MVP local-first, a fase 2 adicionou rastreamento real e dashboard, a fase 3 integrou analise tecnica opcional via Copilot CLI com fallback local, e a fase 4 passou a capturar sinais reais de diff/status Git do workspace para enriquecer a analise e os rascunhos.
 
 ## O que foi criado
 
@@ -65,6 +65,30 @@ A fase 1 do LinkedIn Dev Companion foi implementada como MVP local-first e publi
 - Quando Copilot esta ausente/desabilitado/falha, o daemon usa fallback local baseado em resumo diario.
 - Extensao recebeu comandos `LinkedIn Dev Companion: Verificar Copilot CLI` e `LinkedIn Dev Companion: Ver analise tecnica de hoje`.
 
+## Fase 4 implementada
+
+- A extensao agora observa tambem o estado do worktree Git, nao apenas o ultimo commit.
+- Novo evento normalizado `git_snapshot` para registrar `git diff --shortstat`, arquivos alterados e resumo de `git status --short`.
+- O ingestor passou a aceitar `git_snapshot` mantendo a redacao de caminhos sensiveis em `files_modified`.
+- `DailySummary` agora inclui `git_changes`, com commits e snapshots recentes do dia.
+- A analise tecnica usa `git_changes` como evidencia principal quando existe diff/status capturado.
+- O prompt enviado ao Copilot CLI passa a orientar o uso de `git_changes` como fonte de evidencia tecnica.
+- O fallback local cita o ultimo sinal Git, arquivos alterados e linhas adicionadas/removidas.
+- O dashboard Markdown da extensao ganhou a secao `Sinais Git`.
+- A auditoria do rascunho inclui `summary.git_changes` dentro de `context_audit`.
+
+## Validacao executada na fase 4
+
+- `cargo fmt --all`: ok.
+- `cargo check`: ok.
+- `cargo test`: ok, incluindo cobertura HTTP para `git_snapshot` em resumo, analise e auditoria.
+- `npm run compile` em `vscode-extension`: ok.
+- Daemon subiu em `127.0.0.1:8787`.
+- `POST /events` com `event_type = git_snapshot`: ok.
+- `GET /sessions/2026-05-06/summary`: retornou `git_changes` com `diff_summary`, `status_summary`, arquivos e linhas adicionadas/removidas.
+- `GET /analysis/today`: retornou insight citando `Ultimo sinal Git`.
+- `POST /posts/generate`: salvou `summary.git_changes` dentro de `context_audit`.
+
 ## Validacao executada na fase 3
 
 - `cargo fmt --all`: ok.
@@ -88,10 +112,12 @@ A fase 1 do LinkedIn Dev Companion foi implementada como MVP local-first e publi
 ## Fluxos disponiveis
 
 1. A extensao envia eventos para `POST /events`.
-2. O daemon agrega o dia por `GET /sessions/{date}/summary`.
-3. O usuario aciona a geracao via extensao ou `POST /posts/generate`.
-4. O rascunho fica com status `pending_approval`.
-5. O usuario aprova manualmente por `POST /posts/{id}/approve`.
+2. O `GitWatcher` envia `git_commit` quando encontra novo commit e `git_snapshot` quando o diff/status do workspace muda.
+3. O daemon agrega o dia por `GET /sessions/{date}/summary`, incluindo `git_changes`.
+4. A analise tecnica vem de `GET /analysis/today` com Copilot opcional ou fallback local.
+5. O usuario aciona a geracao via extensao ou `POST /posts/generate`.
+6. O rascunho fica com status `pending_approval`.
+7. O usuario aprova manualmente por `POST /posts/{id}/approve`.
 
 ## Endpoints implementados
 
@@ -111,10 +137,12 @@ A fase 1 do LinkedIn Dev Companion foi implementada como MVP local-first e publi
 
 ## Decisoes importantes
 
-- A fase 1 nao chama OpenAI, Copilot CLI ou LinkedIn. Isso foi proposital para validar tudo sem tokens, custos ou dependencias externas.
-- O gerador atual e um template local. Ele deve ser substituido por um provider configuravel na fase de inteligencia.
+- O modo padrao nao chama OpenAI, Copilot CLI ou LinkedIn. Isso foi proposital para validar tudo sem tokens, custos ou dependencias externas.
+- O Copilot CLI e opcional e so roda com `LDC_COPILOT_ENABLED=true`.
+- O gerador padrao continua sendo um template local, mas ja existe provider OpenAI configuravel por ambiente.
 - A publicacao no LinkedIn permanece desabilitada. O status aprovado e apenas local.
 - A extensao ignora falhas silenciosamente durante tracking para nao atrapalhar o usuario se o daemon estiver offline.
+- A fase 4 captura estatisticas e nomes de arquivos do Git, mas nao envia patch completo nem conteudo de arquivo.
 
 ## Como validar manualmente
 
@@ -129,6 +157,7 @@ Em outro terminal:
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8787/health
 Invoke-RestMethod http://127.0.0.1:8787/events -Method Post -ContentType 'application/json' -Body '{"session_id":"manual","event_type":"document_edit","project":{"name":"demo","path":"demo"},"activity":{"files_modified":["src/main.rs"],"languages":{"rust":10},"lines_added":12,"lines_removed":3,"time_spent_minutes":10}}'
+Invoke-RestMethod http://127.0.0.1:8787/events -Method Post -ContentType 'application/json' -Body '{"session_id":"manual","event_type":"git_snapshot","project":{"name":"demo","path":"demo","git_branch":"main"},"activity":{"files_modified":["src/main.rs"],"lines_added":12,"lines_removed":3},"metadata":{"diff_summary":"1 file changed, 12 insertions(+), 3 deletions(-)","status_summary":"staged: 0, unstaged: 1, untracked: 0"}}'
 Invoke-RestMethod http://127.0.0.1:8787/posts/generate -Method Post -ContentType 'application/json' -Body '{}'
 Invoke-RestMethod http://127.0.0.1:8787/posts/pending
 Invoke-RestMethod http://127.0.0.1:8787/dashboard/today
@@ -184,9 +213,9 @@ Para alimentar personalidade com prompts do chat, copie o texto do prompt e use 
 
 ## Proximos passos recomendados
 
-- Validar manualmente a extensao via Extension Development Host antes de entrar na fase 3.
-- Enriquecer a analise Copilot com diff real resumido por projeto, nao apenas o resumo diario agregado.
+- Validar manualmente a extensao via Extension Development Host com um workspace Git real e confirmar a secao `Sinais Git` no dashboard.
 - Criar UI dedicada de revisao em Webview, em vez de usar documento Markdown temporario.
 - Adicionar keyring do sistema operacional para tokens externos.
 - Adicionar testes E2E da extensao no Extension Development Host.
 - Evoluir similaridade local para embeddings reais quando OpenAI estiver configurado.
+- Adicionar captura opcional de resumo de PR/issue GitHub quando houver branch remota associada.

@@ -8,6 +8,7 @@ const ALLOWED_EVENT_TYPES: &[&str] = &[
     "document_edit",
     "active_editor",
     "git_commit",
+    "git_snapshot",
     "session_heartbeat",
     "manual_note",
 ];

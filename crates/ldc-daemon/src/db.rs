@@ -1,7 +1,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use ldc_core::{
-    CodingEvent, DailySummary, GeneratedDraft, RankedVoiceExample, RecentEvent, StoredEvent,
-    VoiceExampleRequest,
+    CodingEvent, DailySummary, GeneratedDraft, GitChangeSummary, RankedVoiceExample, RecentEvent,
+    StoredEvent, VoiceExampleRequest,
 };
 use serde_json::{json, Value};
 use sqlx::{
@@ -233,6 +233,19 @@ impl Database {
             .fetch_all(&self.pool)
             .await?;
 
+        let git_rows = sqlx::query(
+            r#"
+            SELECT event_type, project_name, git_branch, files_modified, lines_added, lines_removed, metadata
+            FROM coding_events
+            WHERE event_date = ? AND event_type IN ('git_commit', 'git_snapshot')
+            ORDER BY id DESC
+            LIMIT 8
+            "#,
+        )
+        .bind(&date_text)
+        .fetch_all(&self.pool)
+        .await?;
+
         let mut projects = Vec::new();
         let mut files_modified = Vec::new();
         let mut languages = BTreeMap::new();
@@ -264,6 +277,25 @@ impl Database {
         projects.sort();
         files_modified.sort();
 
+        let mut git_changes = Vec::new();
+        for row in git_rows {
+            let files_json: String = row.try_get("files_modified")?;
+            let metadata_json: String = row.try_get("metadata")?;
+            let metadata: Value = serde_json::from_str(&metadata_json).unwrap_or_default();
+            git_changes.push(GitChangeSummary {
+                event_type: row.try_get("event_type")?,
+                project_name: row.try_get("project_name")?,
+                git_branch: row.try_get("git_branch")?,
+                files_modified: serde_json::from_str(&files_json).unwrap_or_default(),
+                lines_added: row.try_get("lines_added")?,
+                lines_removed: row.try_get("lines_removed")?,
+                commit_hash: metadata_string(&metadata, "commit_hash"),
+                subject: metadata_string(&metadata, "subject"),
+                diff_summary: metadata_string(&metadata, "diff_summary"),
+                status_summary: metadata_string(&metadata, "status_summary"),
+            });
+        }
+
         let voice_examples: i64 = sqlx::query("SELECT COUNT(*) AS total FROM voice_examples")
             .fetch_one(&self.pool)
             .await?
@@ -276,6 +308,7 @@ impl Database {
             lines_added,
             lines_removed,
             git_commits,
+            git_changes,
             projects,
             languages,
             files_modified,
@@ -438,6 +471,15 @@ impl Database {
 
         Ok(Some(self.get_draft(id).await?))
     }
+}
+
+fn metadata_string(metadata: &Value, key: &str) -> Option<String> {
+    metadata
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
 }
 
 fn row_to_draft(row: sqlx::sqlite::SqliteRow) -> anyhow::Result<GeneratedDraft> {
